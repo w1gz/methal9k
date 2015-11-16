@@ -1,0 +1,10 @@
+/_build
+/cover
+/deps
+/doc
+/venv
+erl_crash.dump
+*.ez
+mix.lock
+*credz
+*.sec
