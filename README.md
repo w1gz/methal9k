@@ -11,6 +11,10 @@ Basic requirements:
 - Erlang (>= OTP 18)
 - Elixir (master branch ideally)
 
+For the more AI part:
+- Python3
+- Adapt from [mycroft.ai](https://github.com/MycroftAI/adapt)
+
 
 # Improvements #
 
