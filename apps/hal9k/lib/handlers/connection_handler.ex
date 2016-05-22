@@ -73,16 +73,20 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_info(:disconnected, state) do
-    ExIrc.quit state.client, "I live, I die. I LIVE AGAIN!"
-    ExIrc.stop! state.client
+    throw("[ERR] Disconnected from #{state.server}")
     {:noreply, state}
   end
 
+  # ExIrc.client.quit state.client, "I live, I die. I LIVE AGAIN!"
   def handle_info(:logged_in, state) do
-    IO.puts "Logged in to the server"
-    IO.puts "Joining> "
-    Enum.each(state.chans, &(IO.puts(&1)))
-    state.chans |> Enum.map(&ExIrc.Client.join state.client, &1)
+    IO.puts "[OK] Logged in to the server"
+    IO.puts "[OK] Joining channels:"
+    IO.inspect state.chans
+    state.chans |> Enum.map(fn(chan) ->
+      ExIrc.Client.join state.client, chan
+      ExIrc.Client.msg state.client, :privmsg, chan, "I live, I die. I LIVE AGAIN!"
+    end)
+
     {:noreply, state}
   end
 
@@ -112,8 +116,9 @@ defmodule Hal.ConnectionHandler do
     {:noreply, state}
   end
 
-  def handle_info(msg, state) do
-    IO.inspect(msg)
+  def handle_info(_msg, state) do
+    # debug only
+    # IO.inspect(msg)
     {:noreply, state}
   end
 
