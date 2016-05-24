@@ -17,7 +17,7 @@ defmodule Hal.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :exirc, :timex],
+    [applications: [:logger, :exirc, :uuid, :timex],
      mod: {Hal, ["credz"]}]
   end
 

@@ -42,9 +42,17 @@ defmodule Core.PluginBrain do
   end
 
   # double_rainbow all the way, what does it even mean?
-  defp double_rainbow(req) do
-    # TODO parse with a nlp framework
-    req
+  defp double_rainbow(req={_uid, msg}) do
+    intent = NLP.Adapt.determine_intent(:nlp_adapt, msg)
+    intent = Poison.decode!(intent)
+    IO.inspect(intent)          # debug only
+
+    case intent["intent_type"] do
+      "WeatherIntent" ->
+        location = intent["Location"]
+        weather([location], req)
+      _ -> nil
+    end
   end
 
   defp weather(params, req) do

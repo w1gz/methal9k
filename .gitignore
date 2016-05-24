@@ -9,3 +9,4 @@ mix.lock
 *credz
 *.sec
 *.beam
+*__pycache__

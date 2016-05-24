@@ -1,4 +1,4 @@
-defmodule Adapt.Mixfile do
+defmodule NLP.Mixfile do
   use Mix.Project
 
   def project do
@@ -17,7 +17,7 @@ defmodule Adapt.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :exirc],
+    [applications: [:logger, :erlport],
      mod: {NLP, []}]
   end
 

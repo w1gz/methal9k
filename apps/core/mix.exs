@@ -17,7 +17,7 @@ defmodule Core.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :httpoison, :timex],
+    [applications: [:logger, :httpoison, :poison, :timex],
      mod: {Core, []}]
   end
 
