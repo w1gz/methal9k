@@ -45,25 +45,25 @@ defmodule Hal.ConnectionHandler do
     answers = ["Usage:",
                ".weather <city>",
                ".forecast <city>",
-               ".remind <someone> <some_msg> as soon as he /join the current channel"
+               ".remind <someone> <msg> as soon as he /join this channel"
               ]
     Hal.ConnectionHandler.answer(:hal_connection_handler, _req={uid, answers})
     {:noreply, state}
+
   end
 
   def handle_cast({:answer, {uid, answers}}, state) do
     case :ets.lookup(state.uids, uid) do
-      [] -> IO.puts("#{uid} not found -- bailing out")
+      [] -> :ok
       [{_uid, {_msg, from, chan}}] ->
-        Enum.each(answers, fn(answer) ->
-          case chan do
-            nil -> ExIrc.Client.msg state.client, :privmsg, from, answer # private_msg
-            _ -> ExIrc.Client.msg state.client, :privmsg, chan, answer   # chan
-          end
-        end)
+        answer(answers, chan, from, state)
+        :ets.delete(state.uids, uid)
     end
+    {:noreply, state}
+  end
 
-    :ets.delete(state.uids, uid) # delete the finished job from the table
+  def handle_cast({:answer, {chan, from, answers}}, state) do
+    answer(answers, chan, from, state)
     {:noreply, state}
   end
 
@@ -172,6 +172,15 @@ defmodule Hal.ConnectionHandler do
 
   defp get_reminder(infos, req) do
     Hal.PluginReminder.remind_someone(:hal_plugin_reminder, infos, req)
+  end
+
+  defp answer(answers, chan, from, state) do
+    Enum.each(answers, fn(answer) ->
+      case chan do
+        nil -> ExIrc.Client.msg state.client, :privmsg, from, answer # private_msg
+        _ -> ExIrc.Client.msg state.client, :privmsg, chan, answer   # chan
+      end
+    end)
   end
 
 end

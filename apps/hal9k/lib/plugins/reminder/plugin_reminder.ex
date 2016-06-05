@@ -15,6 +15,9 @@ defmodule Hal.PluginReminder do
     GenServer.call(pid, {:remind_someone, infos, req})
   end
 
+  def purge_expired(pid, timeshift, unit) do
+    GenServer.cast(pid, {:purge_expired, timeshift, unit})
+  end
 
   # Server callbacks
   def init(_state) do
@@ -23,50 +26,30 @@ defmodule Hal.PluginReminder do
     {:ok, new_state}
   end
 
-  def handle_call({:set_reminder, _to_remind={user, memo}, _opts={_msg,from,chan}, _req={uid,_}}, _frompid, state) do
-    rem = state[:reminders]
-    reminder = {from, chan, memo}
+  def handle_call({:set_reminder, _to_remind={to, memo}, _opts={_msg,from,chan}, _req={uid,_}}, _frompid, state) do
+    reminders = state[:reminders]
+    current_time = Timex.DateTime.now
+    true = :ets.insert(reminders, {chan, from, to, memo, current_time})
 
-    # construct a new reminder
-    case :ets.lookup(rem, user) do
-      [] ->
-        true = :ets.insert_new(rem, {user, [reminder]})
-      [{_user, reminders}] ->
-        reminders = List.insert_at(reminders, -1, reminder)
-        true = :ets.insert(rem, {user, reminders})
-    end
+    # construct and send the answer
+    {:ok, ttl} = Timex.format(shift_time(current_time), "%F - %T UTC", :strftime)
+    answers = "Reminder for #{to} is registered and will autodestroy on #{ttl}."
+    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answers]})
 
-    answer = "Reminder for #{user} is now registered."
-    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
     {:reply, :ok, state}
   end
 
   def handle_call({:remind_someone, _infos={chan, user}, _req={uid,_msg}},_frompid, state) do
-    reminders_state = state[:reminders]
-    rem_lookup = :ets.lookup(reminders_state, user)
-    case rem_lookup do
-      [] -> :ok
-      [{lookup_user, reminders}] ->
-        memos = get_reminders(reminders, lookup_user, user, chan)
-
-        # send the answers
-        answers = Enum.map(memos, fn({atom, value}) ->
-          if atom == :ok do value end
-        end)
-        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, answers})
-
-        # Remove the delivered memos from the list
-        memo_left = Enum.filter(memos, fn({atom, _value}) ->
-          atom != :ok and atom != nil
-        end)
-
-        # Update our ETS table
-        case memo_left do
-          [] -> :ets.delete(reminders_state, user)
-          [{_,_}] -> :ets.insert(rem_lookup, {lookup_user, memo_left})
-        end
-    end
+    reminders = state[:reminders]
+    matched = :ets.match(reminders, {chan, :'$1', user, :'$2', :'$3'})
+    send_answers(matched, user, uid)
+    true = :ets.match_delete(reminders, {chan, :'$1', user, :'$2', :'$3'})
     {:reply, :ok, state}
+  end
+
+  def handle_cast({:purge_expired, timeshift, unit}, state) do
+    purge_expired_reminders(state[:reminders], timeshift, unit)
+    {:noreply, state}
   end
 
   def terminate(reason, _state) do
@@ -79,14 +62,39 @@ defmodule Hal.PluginReminder do
 
 
   # Internal functions
-  defp get_reminders(reminders, lookup_user, user, chan) do
-    Enum.map(reminders, fn(reminder={r_from, r_chan, r_memo}) ->
-      if r_chan == chan and lookup_user == user do
-        answer = "memo from #{r_from} to #{user}: #{r_memo}"
-        {:ok, answer}
-      else # r_memo
-        {:ko, reminder}
-      end end)
+  defp purge_expired_reminders(reminders, unit, timeshift) do
+    # fetch the expired memo
+    current_time = Timex.DateTime.now
+    matched = :ets.match(reminders, {:'$1', :'$2', :'$3', :'$4', :'$5'})
+    Enum.each(matched, fn(reminder=[chan, from, to, memo, time]) ->
+      if Timex.before?(shift_time(time, unit, timeshift), current_time) == true do
+        answer = "[EXPIRED] " <> generic_answer(from, to, memo, time)
+        IO.puts(answer)
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {chan, to, [answer]})
+        true = :ets.match_delete(reminders, reminder)
+      end
+    end)
+  end
+
+  defp send_answers(matched, user, uid) do
+    Enum.each(matched, fn([from, memo, time]) ->
+      answer = generic_answer(from, user, memo, time)
+      Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+    end)
+  end
+
+  defp generic_answer(r_from, user, r_memo, time) do
+    {:ok, ttl} = Timex.format(time, "%F - %T UTC", :strftime)
+    _answer = "\{#{ttl}\} #{r_from} to #{user}: #{r_memo}"
+  end
+
+  defp shift_time(time, unit \\ :days, timeshift \\ 7) do
+    case unit do
+      :days    -> Timex.shift(time, days: timeshift)
+      :hours   -> Timex.shift(time, hours: timeshift)
+      :minutes -> Timex.shift(time, minutes: timeshift)
+      :seconds -> Timex.shift(time, seconds: timeshift)
+    end
   end
 
 end

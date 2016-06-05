@@ -13,7 +13,7 @@ defmodule Hal.PluginReminderKeeper do
 
   # Server callbacks
   def init(_state) do
-    reminders = :ets.new(:reminders, [{:heir, self(), nil}])
+    reminders = :ets.new(:reminders, [:duplicate_bag, :protected, {:heir, self(), nil}])
     new_state = %{reminders: reminders}
     {:ok, new_state}
   end

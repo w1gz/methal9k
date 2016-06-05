@@ -8,8 +8,8 @@ GenServer, Supervisor or even Hot code loading.
 # Installation #
 
 Basic requirements:
-- Erlang (> OTP 18)
-- Elixir
+- Erlang (>= OTP 18)
+- Elixir (master branch ideally)
 
 
 # Improvements #
