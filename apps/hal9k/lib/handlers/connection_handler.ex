@@ -44,12 +44,11 @@ defmodule Hal.ConnectionHandler do
   def handle_cast({:usage, _req={uid,_msg}}, state) do
     answers = ["Usage:",
                ".weather <city>",
-               ".forecast <city>",
+               ".forecast <scope> <city> (scope can be either 'hourly' or 'daily')",
                ".remind <someone> <msg> as soon as he /join this channel"
               ]
     Hal.ConnectionHandler.answer(:hal_connection_handler, _req={uid, answers})
     {:noreply, state}
-
   end
 
   def handle_cast({:answer, {uid, answers}}, state) do
@@ -82,11 +81,7 @@ defmodule Hal.ConnectionHandler do
     IO.puts "[OK] Logged in to the server"
     IO.puts "[OK] Joining channels:"
     IO.inspect state.chans
-    state.chans |> Enum.map(fn(chan) ->
-      ExIrc.Client.join state.client, chan
-      ExIrc.Client.msg state.client, :privmsg, chan, "I live, I die. I LIVE AGAIN!"
-    end)
-
+    Enum.map(state.chans, &(ExIrc.Client.join state.client, &1))
     {:noreply, state}
   end
 
@@ -158,7 +153,9 @@ defmodule Hal.ConnectionHandler do
 
   defp set_reminder(_parsed={cmd, user}, opts={msg,from,chan}, req, state) do
     case chan do
-      nil -> ExIrc.Client.msg state.client, :privmsg, from, "I can't do that on private messages!"
+      nil ->
+        answer = "I can't do that on private messages!"
+        ExIrc.Client.msg state.client, :privmsg, from, answer
       _ ->
         # only store the reminder for a missing nickname
         case ExIrc.Client.channel_has_user?(state.client, chan, user) do
@@ -175,12 +172,12 @@ defmodule Hal.ConnectionHandler do
   end
 
   defp answer(answers, chan, from, state) do
-    Enum.each(answers, fn(answer) ->
-      case chan do
-        nil -> ExIrc.Client.msg state.client, :privmsg, from, answer # private_msg
-        _ -> ExIrc.Client.msg state.client, :privmsg, chan, answer   # chan
-      end
-    end)
+    Enum.each(answers, &(
+          case chan do
+            nil -> ExIrc.Client.msg state.client, :privmsg, from, &1 # private_msg
+            _ -> ExIrc.Client.msg state.client, :privmsg, chan, &1   # chan
+          end)
+    )
   end
 
 end

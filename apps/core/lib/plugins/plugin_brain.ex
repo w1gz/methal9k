@@ -36,25 +36,40 @@ defmodule Core.PluginBrain do
     [cmd | params] = String.split(msg)
     case cmd do
       ".weather"  -> weather(params, req)
-      ".forecast" -> forecast(req)
+      ".forecast" -> forecast(params, req)
       _           -> nil
     end
   end
 
   # double_rainbow all the way, what does it even mean?
   defp double_rainbow(req) do
-    # TODO parse with an adapt/tensorflow plugin
+    # TODO parse with a nlp framework
     req
   end
 
   defp weather(params, req) do
-    Core.PluginWeather.get_current_weather(:core_plugin_weather, params, req)
+    Core.PluginWeather.current_weather(:core_plugin_weather, params, req)
   end
 
-  defp forecast(_req={uid, _msg}) do
-    # TODO provides a ~3h/~3days forecast
-    answer = "Not yet implemented."
-    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+  defp forecast(params, req={uid, _msg}) do
+    case params do
+      [] ->
+        answer = "Please specify the scope and the city."
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        throw(answer)
+      [_scope | []] ->
+        answer = "Please specify a city."
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        throw(answer)
+      ["hourly" | city]  ->
+        Core.PluginWeather.hourly(:core_plugin_weather, city, req)
+      ["daily" | city] ->
+        Core.PluginWeather.daily(:core_plugin_weather, city, req)
+      _ ->
+        answer = "Please review your scope (hourly or daily)."
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        throw(answer)
+    end
   end
 
 end
