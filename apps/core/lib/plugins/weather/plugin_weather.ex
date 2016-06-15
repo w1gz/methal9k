@@ -11,10 +11,17 @@ defmodule Core.PluginWeather do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  def get_current_weather(pid, params, req) do
+  def current_weather(pid, params, req) do
     GenServer.cast(pid, {:current_weather, params, req})
   end
 
+  def hourly(pid, params, req) do
+    GenServer.cast(pid, {:forecast_hourly, params, req})
+  end
+
+  def daily(pid, params, req) do
+    GenServer.cast(pid, {:forecast_daily, params, req})
+  end
 
   # Server callbacks
   def init(_state) do
@@ -28,33 +35,21 @@ defmodule Core.PluginWeather do
     {:ok, new_state}
   end
 
-  def handle_cast({:current_weather, params, req={uid, _msg}}, state) do
-    # construct the city name from the parameters
-    city = cond do
-      params != [] -> Enum.join(params, " ")
-      true ->
-        answer = "Please give me a location to work with."
-        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
-        throw("No arguments for weather, crashing")
-    end
+  def handle_cast({:current_weather, params, req}, state) do
+    url = "api.openweathermap.org/data/2.5/weather"
+    get_weather(url, params, req, state.appid, :current_weather)
+    {:noreply, state}
+  end
 
-    # request some weather informations
-    url_api = "api.openweathermap.org/data/2.5/weather"
-    query_params = %{q: city, APPID: state.appid}
-    {:ok, res} = HTTPoison.get(url_api, [], stream_to: self, params: query_params)
-    {:ok, output} = parse_async(res.id)
+  def handle_cast({:forecast_hourly, params, req}, state) do
+    url = "api.openweathermap.org/data/2.5/forecast"
+    get_weather(url, params, req, state.appid, :forecast_hourly)
+    {:noreply, state}
+  end
 
-    # format the answer
-    code = output[:code]
-    answer = case code do
-               200 ->
-                 format_for_human(output, req)
-               _ ->
-                 "¡¡¡ Bonk !!! HTTP.code == #{code}"
-             end
-
-    # answer the weather call
-    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+  def handle_cast({:forecast_daily, params, req}, state) do
+    url = "api.openweathermap.org/data/2.5/forecast/daily"
+    get_weather(url, params, req, state.appid, :forecast_daily)
     {:noreply, state}
   end
 
@@ -66,9 +61,45 @@ defmodule Core.PluginWeather do
     {:ok, state}
   end
 
-  defp parse_async(id) do
-    parse_async(id, _output = %{:code => "", :data => ""})
+
+  # Internal functions
+  defp get_weather(url, params, req={uid, _msg}, appid, weather_type) do
+    output = send_request(url, params, uid, appid)
+    answer = format_for_human(output, req, weather_type)
+    answers = case is_list(answer) do
+                true  -> answer
+                false -> [answer]
+              end
+    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, answers})
   end
+
+  defp send_request(url, params, uid, appid) do
+    # construct the city name from the parameters
+    city = cond do
+      params != [] -> Enum.join(params, " ")
+      true ->
+        answer = "Please give me a location to work with."
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        throw("No arguments for weather, crashing")
+    end
+
+    # request some weather informations
+    query_params = %{q: city, APPID: appid}
+    {:ok, res} = HTTPoison.get(url, [], stream_to: self, params: query_params)
+    {:ok, output} = parse_async(res.id)
+
+    # does the request succeed?
+    code = output[:code]
+    case code do
+      200 -> output
+      _   ->
+        answer = "¡Bonk! Request failed with HTTP.code == #{code}"
+        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        throw(answer)
+    end
+  end
+
+  defp parse_async(id) do parse_async(id, _output = %{:code => "", :data => ""}) end
 
   defp parse_async(id, output) do
     receive do
@@ -82,19 +113,96 @@ defmodule Core.PluginWeather do
     end
   end
 
-  defp format_for_human(output, _req={uid, _msg}) do
+  defp format_for_human(output, _req={uid, _msg}, weather_type) do
     json = output[:data]
     raw = Poison.decode!(json)
 
-    # check if the API request was successful
+    # The API will either return a integer or a string
     code = raw["cod"]
+    code = case is_integer(code) do
+             true -> code
+             false -> String.to_integer(code)
+           end
+
+    # check if the API request was successful
     if code != 200 do
       error_msg = raw["message"]
       answer = "The API returns #{code}, #{error_msg}"
-        Hal.connectionHandler.answer(:hal_connection_handler, {uid, [answer]})
-      throw("The weather api failed to provide a valid answer")
+      Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+      throw(answer)
     end
 
+    case weather_type do
+      :current_weather -> format_current_weather(raw)
+      :forecast_hourly -> format_forecast_hourly(raw)
+      :forecast_daily  -> format_forecast_daily(raw)
+    end
+  end
+
+  defp format_forecast_hourly(raw) do
+    answers =
+      Enum.filter(raw["list"], fn(fday) ->
+        {:ok, hnow} = Timex.format(Timex.DateTime.now, "%H", :strftime)
+        {_, {hour,_min,_sec}} = :calendar.gregorian_seconds_to_datetime(fday["dt"])
+        hnow >= hour
+      end)
+      |> Enum.map(fn(fday) ->
+      # general conditions
+      datetime = fday["dt_txt"]
+      temp = Float.round(fday["main"]["temp"] - 273.15, 1)
+      pressure = round(fday["main"]["pressure"])
+      desc = hd(fday["weather"])["description"]
+
+      # construct the answer
+      weather_for_human = [
+        "#{datetime} UTC",
+        "#{pressure} hPa, #{temp}°C",
+        "#{desc}"
+      ]
+      Enum.join(weather_for_human, " ~ ")
+    end)
+    |> Enum.take(5)
+
+      # add the header
+      name = raw["city"]["name"]
+      country = raw["city"]["country"]
+      List.insert_at(answers, 0, "#{name}, #{country}.")
+  end
+
+  defp format_forecast_daily(raw) do
+    answers =
+      Enum.take(raw["list"], 5)
+      |> Enum.map(fn(fday) ->
+      time = fday["dt"]
+      {{year,month,day}, {_hour,_min,_sec}} = :calendar.gregorian_seconds_to_datetime(time)
+      year = year + 1970
+
+      # temps of the day
+      tmorn = Float.round(fday["temp"]["morn"] - 273.15, 1)
+      teve = Float.round(fday["temp"]["eve"] - 273.15, 1)
+      tnight = Float.round(fday["temp"]["night"] - 273.15, 1)
+
+      # general conditions
+      pressure = round(fday["pressure"])
+      desc = hd(fday["weather"])["description"]
+
+      # construct the answer
+      weather_for_human = [
+        "#{year}-#{month}-#{day}",
+        "#{pressure} hPa",
+        "#{tmorn}°C #{teve}°C #{tnight}°C",
+        "#{desc}"
+      ]
+      Enum.join(weather_for_human, " ~ ")
+    end)
+
+      # add the header
+      name = raw["city"]["name"]
+      country = raw["city"]["country"]
+      List.insert_at(answers, 0, "#{name}, #{country}. Temps are for Morning, Evening and Night")
+  end
+
+  defp format_current_weather(raw) do
     # 'basic' weather & name
     name = raw["name"]
     desc = hd(raw["weather"])["description"]
@@ -111,16 +219,16 @@ defmodule Core.PluginWeather do
 
     # 'main' informations
     humidity = raw["main"]["humidity"]
-    pressure = raw["main"]["pressure"]
-    temp     = Float.round((raw["main"]["temp"] - 273.15), 1) # convert from Kelvin to Celcius
+    pressure = round(raw["main"]["pressure"])
+    temp     = Float.round((raw["main"]["temp"] - 273.15), 1) # from Kelvin to Celcius
 
     # write down our parsed answer
     weather_for_human = [
       "#{name}, #{country}",
-      "#{desc}, #{temp}C  #{humidity}% Humidity  #{pressure} hPa",
+      "#{desc}, #{temp}°C #{humidity}% Humidity  #{pressure} hPa",
       "The sun rises at #{sunrise} UTC and sets at #{sunset} UTC"
     ]
-    Enum.join(weather_for_human, " ~~ ")
+    Enum.join(weather_for_human, " ~ ")
   end
 
 end
