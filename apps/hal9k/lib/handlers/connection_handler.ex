@@ -3,7 +3,7 @@ defmodule Hal.ConnectionHandler do
 
   # Client
   def start_link(args, opts \\ []) do
-    IO.puts "New ConnectionHandler"
+    IO.puts "[INFO] New ConnectionHandler"
     GenServer.start_link(__MODULE__, args, opts)
   end
 
@@ -11,14 +11,13 @@ defmodule Hal.ConnectionHandler do
     GenServer.call(pid, {:get_state})
   end
 
-  def usage(pid, req) do
-    GenServer.cast(pid, {:usage, req})
-  end
-
   def answer(pid, answers) do
     GenServer.cast(pid, {:answer, answers})
   end
 
+  def has_user(pid, chan, user) do
+    GenServer.call(pid, {:has_user, chan, user})
+  end
 
   # Server callbacks
   def init(state) do
@@ -41,14 +40,9 @@ defmodule Hal.ConnectionHandler do
     {:reply, state, state}
   end
 
-  def handle_cast({:usage, _req={uid,_msg}}, state) do
-    answers = ["Usage:",
-               ".weather <city>",
-               ".forecast <scope> <city> (scope can be either 'hourly' or 'daily')",
-               ".remind <someone> <msg> as soon as he /join this channel"
-              ]
-    Hal.ConnectionHandler.answer(:hal_connection_handler, _req={uid, answers})
-    {:noreply, state}
+  def handle_call({:has_user, chan, user}, _frompid, state) do
+    status = ExIrc.Client.channel_has_user?(state.client, chan, user)
+    {:reply, status, state}
   end
 
   def handle_cast({:answer, {uid, answers}}, state) do
@@ -66,6 +60,11 @@ defmodule Hal.ConnectionHandler do
     {:noreply, state}
   end
 
+  def handle_info({:answer, req}, state) do
+    Hal.ConnectionHandler.answer(:hal_connection_handler, req)
+    {:noreply, state}
+  end
+
   def handle_info({:connected, _server, _port}, state) do
     ExIrc.Client.logon state.client, state.pass, state.nick, state.user, state.name
     {:noreply, state}
@@ -78,8 +77,8 @@ defmodule Hal.ConnectionHandler do
 
   # ExIrc.client.quit state.client, "I live, I die. I LIVE AGAIN!"
   def handle_info(:logged_in, state) do
-    IO.puts "[OK] Logged in to the server"
-    IO.puts "[OK] Joining channels:"
+    IO.puts "[INFO] Logged in to the server"
+    IO.puts "[INFO] Joining channels:"
     IO.inspect state.chans
     Enum.map(state.chans, &(ExIrc.Client.join state.client, &1))
     {:noreply, state}
@@ -89,7 +88,7 @@ defmodule Hal.ConnectionHandler do
     opts = {nil, from.nick, chan}
     uid = give_me_an_id(opts)
     true = :ets.insert(state.uids, {uid, opts})
-    get_reminder(_infos={chan, from.nick}, _req={uid, opts})
+    Core.PluginBrain.get_reminder(:core_plugin_brain, _infos={chan, from.nick}, _req={uid,self(),nil})
     {:noreply, state}
   end
 
@@ -97,7 +96,7 @@ defmodule Hal.ConnectionHandler do
     opts = {msg, from.nick, chan}
     uid = give_me_an_id(opts)
     true = :ets.insert(state.uids, {uid, opts})
-    Core.PluginBrain.double_rainbow(:core_plugin_brain, _req={uid, msg})
+    Core.PluginBrain.double_rainbow(:core_plugin_brain, _req={uid,self(),msg})
     {:noreply, state}
   end
 
@@ -132,43 +131,14 @@ defmodule Hal.ConnectionHandler do
     UUID.uuid5(time_seed, "#{msg}#{from}#{chan}", :hex)
   end
 
-  defp help(req) do
-    Hal.ConnectionHandler.usage(:hal_connection_handler, req)
-  end
-
   defp generic_received(opts={msg,_from,_chan}, state) do
     if String.at(msg, 0) == "." do
       uid = give_me_an_id(opts)
       true = :ets.insert(state.uids, {uid, opts})
 
       [cmd | params] = String.split(msg)
-      case cmd do
-        ".help"   -> help(_req={uid,msg})
-        ".remind" ->
-          set_reminder(_parsed={cmd, hd(params)}, opts, _req={uid,msg}, state)
-        _ -> Core.PluginBrain.command(:core_plugin_brain, _req={uid, msg})
-      end
+      Core.PluginBrain.command(:core_plugin_brain, opts, _req={uid,self(),msg})
     end
-  end
-
-  defp set_reminder(_parsed={cmd, user}, opts={msg,from,chan}, req, state) do
-    case chan do
-      nil ->
-        answer = "I can't do that on private messages!"
-        ExIrc.Client.msg state.client, :privmsg, from, answer
-      _ ->
-        # only store the reminder for a missing nickname
-        case ExIrc.Client.channel_has_user?(state.client, chan, user) do
-          true -> ExIrc.Client.msg state.client, :privmsg, chan, "#{user} is already on the channel, tell him yourself ! :)"
-          _ ->
-            match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-            Hal.PluginReminder.set_reminder(:hal_plugin_reminder, _reminder = {user, match["memo"]}, opts, req)
-        end
-    end
-  end
-
-  defp get_reminder(infos, req) do
-    Hal.PluginReminder.remind_someone(:hal_plugin_reminder, infos, req)
   end
 
   defp answer(answers, chan, from, state) do

@@ -8,7 +8,7 @@ defmodule Core.Mixfile do
      config_path: "../../config/config.exs",
      deps_path: "../../deps",
      lockfile: "../../mix.lock",
-     elixir: "~> 1.3-dev",
+     elixir: "~> 1.3",
      description: description,
      package: package,
      build_embedded: Mix.env == :prod,
@@ -17,8 +17,12 @@ defmodule Core.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :httpoison, :timex],
-     mod: {Core, []}]
+    [applications: [
+        :logger,
+        :httpoison,
+        :poison,
+        :timex,
+      ], mod: {Core, []}]
   end
 
   defp deps do
@@ -26,7 +30,7 @@ defmodule Core.Mixfile do
       {:ex_doc, "~> 0.11.4"},
       {:httpoison, "~> 0.8.2"},
       {:poison, "~> 2.1.0"},
-      {:timex, "2.1.6"}
+      {:timex, "2.1.6"},
     ]
   end
 

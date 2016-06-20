@@ -1,4 +1,4 @@
-defmodule Hal.PluginReminderKeeper do
+defmodule Core.PluginReminderKeeper do
   use GenServer
 
   # Client API
