@@ -42,8 +42,7 @@ defmodule Hal do
     args = %State{client: client} |> Map.merge(conf)
 
     children = [
-      supervisor(Hal.HandlerSupervisor, [type, args], restart: :permanent),
-      supervisor(Hal.PluginSupervisor, [type, args], restart: :permanent)
+      supervisor(Hal.HandlerSupervisor, [type, args], restart: :permanent)
     ]
 
     opts = [strategy: :one_for_one, name: :hal_supervisor]

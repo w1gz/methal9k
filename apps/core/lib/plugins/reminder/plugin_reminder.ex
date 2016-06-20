@@ -1,9 +1,9 @@
-defmodule Hal.PluginReminder do
+defmodule Core.PluginReminder do
   use GenServer
 
   # Client API
   def start_link(args, opts \\ []) do
-    IO.puts("New PluginReminder")
+    IO.puts("[INFO] New PluginReminder")
     GenServer.start_link(__MODULE__, args, opts)
   end
 
@@ -21,12 +21,12 @@ defmodule Hal.PluginReminder do
 
   # Server callbacks
   def init(_state) do
-    reminders = Hal.PluginReminderKeeper.give_me_your_table(:hal_plugin_reminder_keeper)
+    reminders = Core.PluginReminderKeeper.give_me_your_table(:core_plugin_reminder_keeper)
     new_state = %{reminders: reminders}
     {:ok, new_state}
   end
 
-  def handle_call({:set_reminder, _to_remind={to, memo}, _opts={_msg,from,chan}, _req={uid,_}}, _frompid, state) do
+  def handle_call({:set_reminder, _to_remind={to, memo}, _opts={_msg,from,chan}, _req={uid,frompid,_}}, _frompid, state) do
     reminders = state[:reminders]
     current_time = Timex.DateTime.now
     true = :ets.insert(reminders, {chan, from, to, memo, current_time})
@@ -34,22 +34,22 @@ defmodule Hal.PluginReminder do
     # construct and send the answer
     {:ok, ttl} = Timex.format(shift_time(current_time), "%F - %T UTC", :strftime)
     answers = "Reminder for #{to} is registered and will autodestroy on #{ttl}."
-    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answers]})
+    send frompid, {:answer, {uid, [answers]}}
 
     {:reply, :ok, state}
   end
 
-  def handle_call({:remind_someone, _infos={chan, user}, _req={uid,_msg}},_frompid, state) do
+  def handle_call({:remind_someone, _infos={chan, user}, _req={uid,frompid,_msg}},_frompid, state) do
     reminders = state[:reminders]
     matched = :ets.match(reminders, {chan, :'$1', user, :'$2', :'$3'})
-    send_answers(matched, user, uid)
+    send_answers(matched, user, uid, frompid)
     true = :ets.match_delete(reminders, {chan, :'$1', user, :'$2', :'$3'})
     {:reply, :ok, state}
   end
 
-  def handle_cast({:purge_expired, timeshift, unit}, state) do
-    purge_expired_reminders(state[:reminders], timeshift, unit)
-    {:noreply, state}
+  def handle_call({:purge_expired, timeshift, unit}, frompid, state) do
+    purge_expired_reminders(state[:reminders], timeshift, unit, frompid)
+    {:reply, :ok, state}
   end
 
   def terminate(reason, _state) do
@@ -62,7 +62,7 @@ defmodule Hal.PluginReminder do
 
 
   # Internal functions
-  defp purge_expired_reminders(reminders, unit, timeshift) do
+  defp purge_expired_reminders(reminders, unit, timeshift, frompid) do
     # fetch the expired memo
     current_time = Timex.DateTime.now
     matched = :ets.match(reminders, {:'$1', :'$2', :'$3', :'$4', :'$5'})
@@ -70,16 +70,16 @@ defmodule Hal.PluginReminder do
       if Timex.before?(shift_time(time, unit, timeshift), current_time) == true do
         answer = "[EXPIRED] " <> generic_answer(from, to, memo, time)
         IO.puts(answer)
-        Hal.ConnectionHandler.answer(:hal_connection_handler, {chan, to, [answer]})
+        send frompid, {:answer, {chan, to, [answer]}}
         true = :ets.match_delete(reminders, reminder)
       end
     end)
   end
 
-  defp send_answers(matched, user, uid) do
+  defp send_answers(matched, user, uid, frompid) do
     Enum.each(matched, fn([from, memo, time]) ->
       answer = generic_answer(from, user, memo, time)
-      Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+      send frompid, {:answer, {uid, [answer]}}
     end)
   end
 

@@ -7,7 +7,7 @@ defmodule Core.PluginWeather do
 
   # Client API
   def start_link(args, opts \\ []) do
-    IO.puts("New PluginWeather")
+    IO.puts("[INFO] New PluginWeather")
     GenServer.start_link(__MODULE__, args, opts)
   end
 
@@ -35,21 +35,21 @@ defmodule Core.PluginWeather do
     {:ok, new_state}
   end
 
-  def handle_cast({:current_weather, params, req}, state) do
+  def handle_cast(args={:current_weather, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/weather"
-    get_weather(url, params, req, state.appid, :current_weather)
+    get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast({:forecast_hourly, params, req}, state) do
+  def handle_cast(args={:forecast_hourly, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/forecast"
-    get_weather(url, params, req, state.appid, :forecast_hourly)
+    get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast({:forecast_daily, params, req}, state) do
+  def handle_cast(args={:forecast_daily, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/forecast/daily"
-    get_weather(url, params, req, state.appid, :forecast_daily)
+    get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
@@ -63,23 +63,23 @@ defmodule Core.PluginWeather do
 
 
   # Internal functions
-  defp get_weather(url, params, req={uid, _msg}, appid, weather_type) do
-    output = send_request(url, params, uid, appid)
-    answer = format_for_human(output, req, weather_type)
+  defp get_weather(_args={type, params, req={uid, frompid, _msg}}, appid, url) do
+    output = send_request(params, uid, frompid, appid, url)
+    answer = format_for_human(output, req, type)
     answers = case is_list(answer) do
                 true  -> answer
                 false -> [answer]
               end
-    Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, answers})
+    send frompid, {:answer, {uid, answers}}
   end
 
-  defp send_request(url, params, uid, appid) do
+  defp send_request(params, uid, frompid, appid, url) do
     # construct the city name from the parameters
     city = cond do
       params != [] -> Enum.join(params, " ")
       true ->
         answer = "Please give me a location to work with."
-        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        send frompid, {:answer, {uid, [answer]}}
         throw("No arguments for weather, crashing")
     end
 
@@ -94,7 +94,7 @@ defmodule Core.PluginWeather do
       200 -> output
       _   ->
         answer = "¡Bonk! Request failed with HTTP.code == #{code}"
-        Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+        send frompid, {:answer, {uid, [answer]}}
         throw(answer)
     end
   end
@@ -113,7 +113,7 @@ defmodule Core.PluginWeather do
     end
   end
 
-  defp format_for_human(output, _req={uid, _msg}, weather_type) do
+  defp format_for_human(output, _req={uid, frompid, _msg}, weather_type) do
     json = output[:data]
     raw = Poison.decode!(json)
 
@@ -128,7 +128,7 @@ defmodule Core.PluginWeather do
     if code != 200 do
       error_msg = raw["message"]
       answer = "The API returns #{code}, #{error_msg}"
-      Hal.ConnectionHandler.answer(:hal_connection_handler, {uid, [answer]})
+      send frompid, {:answer, {uid, [answer]}}
       throw(answer)
     end
 

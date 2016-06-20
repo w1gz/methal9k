@@ -8,7 +8,7 @@ defmodule Hal.Mixfile do
      config_path: "../../config/config.exs",
      deps_path: "../../deps",
      lockfile: "../../mix.lock",
-     elixir: "~> 1.3-dev",
+     elixir: "~> 1.3",
      description: description,
      package: package,
      build_embedded: Mix.env == :prod,
@@ -17,8 +17,10 @@ defmodule Hal.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :exirc, :timex],
-     mod: {Hal, ["credz"]}]
+    [applications: [
+        :logger,
+        :exirc,
+      ], mod: {Hal, ["credz"]}]
   end
 
   defp deps do
@@ -26,7 +28,6 @@ defmodule Hal.Mixfile do
       {:ex_doc, "~> 0.11.4"},
       {:exirc, "~> 0.11.0"},
       {:uuid, "~> 1.1.3"},
-      {:timex, "2.1.6"}
     ]
   end
 
