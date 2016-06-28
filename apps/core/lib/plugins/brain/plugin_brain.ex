@@ -48,6 +48,14 @@ defmodule Core.PluginBrain do
     {:noreply, state}
   end
 
+  def terminate(reason, _state) do
+    {:ok, reason}
+  end
+
+  def code_change(_old_vsn, state, _extra) do
+    {:ok, state}
+  end
+
 
   # Internal functions
   defp check_out_the_big_brain_on_brett(opts, req={_uid,_frompid,msg}) do

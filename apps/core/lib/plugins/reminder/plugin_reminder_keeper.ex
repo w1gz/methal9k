@@ -29,4 +29,11 @@ defmodule Core.PluginReminderKeeper do
     {:noreply, new_state}
   end
 
+  def terminate(reason, _state) do
+    {:ok, reason}
+  end
+
+  def code_change(_old_vsn, state, _extra) do
+    {:ok, state}
+  end
 end
