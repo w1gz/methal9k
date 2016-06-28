@@ -85,7 +85,7 @@ defmodule Core.PluginWeather do
 
     # request some weather informations
     query_params = %{q: city, APPID: appid}
-    {:ok, res} = HTTPoison.get(url, [], stream_to: self, params: query_params)
+    {:ok, res} = HTTPoison.get(url, [], stream_to: self(), params: query_params)
     {:ok, output} = parse_async(res.id)
 
     # does the request succeed?

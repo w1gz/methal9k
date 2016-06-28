@@ -24,10 +24,10 @@ defmodule Hal.ConnectionHandler do
     # Create only one connection per ExIrc.Client
     case ExIrc.Client.is_logged_on? state.client do
       true ->
-        ExIrc.Client.add_handler state.client, self
+        ExIrc.Client.add_handler state.client, self()
         send self(), :logged_in
       _ ->
-        ExIrc.Client.add_handler state.client, self
+        ExIrc.Client.add_handler state.client, self()
         ExIrc.Client.connect! state.client, state.host, state.port
     end
 
