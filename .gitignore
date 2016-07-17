@@ -9,3 +9,7 @@ mix.lock
 *credz
 *.sec
 *.beam
+*~
+.*~
+\#*\#
+.\#*\#
