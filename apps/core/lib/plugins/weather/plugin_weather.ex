@@ -69,7 +69,7 @@ defmodule Core.PluginWeather do
 
 
   # Internal functions
-  defp get_weather(_args={type, params, req={uid, frompid, _msg}}, appid, url) do
+  defp get_weather({type, params, req={uid,frompid}}, appid, url) do
     output = send_request(params, uid, frompid, appid, url)
     answer = format_for_human(output, req, type)
     answers = case is_list(answer) do
@@ -119,7 +119,7 @@ defmodule Core.PluginWeather do
     end
   end
 
-  defp format_for_human(output, _req={uid, frompid, _msg}, weather_type) do
+  defp format_for_human(output, _req={uid,frompid}, weather_type) do
     json = output[:data]
     raw = Poison.decode!(json)
 

@@ -7,12 +7,12 @@ defmodule Core.PluginReminder do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  def set_reminder(pid, reminder, opts, req) do
-    GenServer.call(pid, {:set_reminder, reminder, opts, req})
+  def set_reminder(pid, reminder, req, infos) do
+    GenServer.call(pid, {:set_reminder, reminder, req, infos})
   end
 
-  def remind_someone(pid, infos, req) do # called when a user join a subscribe chan
-    GenServer.call(pid, {:remind_someone, infos, req})
+  def remind_someone(pid, req, infos) do
+    GenServer.call(pid, {:remind_someone, req, infos})
   end
 
   def purge_expired(pid, timeshift, unit) do
@@ -26,7 +26,7 @@ defmodule Core.PluginReminder do
     {:ok, new_state}
   end
 
-  def handle_call({:set_reminder, _to_remind={to, memo}, _opts={_msg,from,chan}, _req={uid,frompid,_}}, _frompid, state) do
+  def handle_call({:set_reminder, _to_remind={to, memo}, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
     reminders = state[:reminders]
     current_time = Timex.DateTime.now
     true = :ets.insert(reminders, {chan, from, to, memo, current_time})
@@ -39,11 +39,11 @@ defmodule Core.PluginReminder do
     {:reply, :ok, state}
   end
 
-  def handle_call({:remind_someone, _infos={chan, user}, _req={uid,frompid,_msg}},_frompid, state) do
+  def handle_call({:remind_someone, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
     reminders = state[:reminders]
-    matched = :ets.match(reminders, {chan, :'$1', user, :'$2', :'$3'})
-    send_answers(matched, user, uid, frompid)
-    true = :ets.match_delete(reminders, {chan, :'$1', user, :'$2', :'$3'})
+    matched = :ets.match(reminders, {chan, :'$1', from, :'$2', :'$3'})
+    send_answers(matched, from, uid, frompid)
+    true = :ets.match_delete(reminders, {chan, :'$1', from, :'$2', :'$3'})
     {:reply, :ok, state}
   end
 

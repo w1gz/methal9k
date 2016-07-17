@@ -7,44 +7,45 @@ defmodule Core.PluginBrain do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  def usage(pid, req) do
-    GenServer.cast(pid, {:usage, req})
+  def command(pid, req, infos) do
+    GenServer.cast(pid, {:command, req, infos})
   end
 
-  def command(pid, opts, req) do
-    GenServer.cast(pid, {:command, opts, req})
+  def user_action(pid, req, infos) do
+    GenServer.cast(pid, {:user_action, req, infos})
   end
 
-  def get_reminder(pid, infos, req) do
-    GenServer.cast(pid, {:get_reminder, infos, req})
+  def parse_text(pid, req, infos) do
+    GenServer.cast(pid, {:parse_text, req, infos})
   end
 
-  def double_rainbow(pid, req) do
-    GenServer.cast(pid, {:double_rainbow, req})
+  def get_reminder(pid, req, infos) do
+    GenServer.cast(pid, {:get_reminder, req, infos})
   end
+
 
   # Server callbacks
   def init(state) do
     {:ok, state}
   end
 
-  def handle_cast({:command, opts, req}, state) do
-    check_out_the_big_brain_on_brett(opts, req)
+  def handle_cast({:command, req, infos}, state) do
+    check_out_the_big_brain_on_brett(req, infos)
     {:noreply, state}
   end
 
-  def handle_cast({:get_reminder, infos, req}, state) do
-    get_reminder(infos, req)
+  def handle_cast({:user_action, req, infos}, state) do
+    big_kahuna_burger(req, infos)
     {:noreply, state}
   end
 
-  def handle_cast({:double_rainbow, req}, state) do
-    double_rainbow(req)
+  def handle_cast({:parse_text, req, infos}, state) do
+    double_rainbow(req, infos)
     {:noreply, state}
   end
 
-  def handle_cast({:usage, req}, state) do
-    help(req)
+  def handle_cast({:get_reminder, req, infos}, state) do
+    get_reminder(req, infos)
     {:noreply, state}
   end
 
@@ -58,41 +59,75 @@ defmodule Core.PluginBrain do
 
 
   # Internal functions
-  defp check_out_the_big_brain_on_brett(opts, req={_uid,_frompid,msg}) do
+  defp check_out_the_big_brain_on_brett(req, _infos={msg,_from,_chan}) do
     [cmd | params] = String.split(msg)
     case cmd do
-      ".help"   -> help(req)
+      ".help"     -> help_cmd(req)
       ".weather"  -> weather(params, req)
       ".forecast" -> forecast(params, req)
-      ".remind"   -> set_reminder({cmd, hd(params)}, opts, req)
       _           -> nil
     end
   end
 
-  # double_rainbow all the way, what does it even mean?
-  defp double_rainbow(req) do
-    # TODO parse with a nlp framework (nltk?)
-    req
+  defp big_kahuna_burger(req, infos={msg,_from,_chan}) do
+    [cmd | params] = String.split(msg)
+    case cmd do
+      "@help"    -> help_user(req)
+      "@remind"  -> set_reminder({cmd, hd(params)}, req, infos)
+      "@chan"    -> highlight_channel(req, infos)
+      _          -> nil
+    end
   end
 
-  defp get_reminder(infos, req) do
-    Core.PluginReminder.remind_someone(:core_plugin_reminder, infos, req)
+  # double_rainbow all the way, what does it even mean?
+  defp double_rainbow(req, infos) do
+    # TODO parse with a nlp framework (nltk?)
+    {req, infos}
+  end
+
+  defp highlight_channel(_req={uid,frompid}, _infos={_msg,from,chan}) do
+    answers = case chan do
+                nil ->          # avoid private messages
+                  ["This is not a channel"]
+                _   ->          # gather the user list
+                  {botname, users} = GenServer.call(frompid, {:get_users, chan})
+                  answer = Enum.filter(users, &(&1 != from and &1 != botname))
+                  |> Enum.map_join(" ", &(&1))
+
+                  # alternative answer if nobody relevant is found
+                  answers = case answer do
+                              "" -> ["#{from}, there is nobody else in this channel."]
+                              _ -> ["cc " <> answer]
+                            end
+              end
+    send frompid, {:answer, {uid, answers}}
+  end
+
+  defp get_reminder(req, infos) do
+    Core.PluginReminder.remind_someone(:core_plugin_reminder, req, infos)
   end
 
   defp weather(params, req) do
     Core.PluginWeather.current_weather(:core_plugin_weather, params, req)
   end
 
-  defp help(_req={uid,frompid,_msg}) do
-    answers = ["Usage:",
+  defp help_cmd(_req={uid,frompid}) do
+    answers = ["Commands (see also @help):",
                ".weather <city>",
-               ".forecast <scope> <city> (scope can be either 'hourly' or 'daily')",
-               ".remind <someone> <msg> as soon as he /join this channel"
+               ".forecast <scope> <city> (scope can be either 'hourly' or 'daily')"
               ]
     send frompid, {:answer, {uid, answers}}
   end
 
-  defp set_reminder(_parsed={cmd, user}, opts={msg,from,chan}, req={_uid,frompid,msg}) do
+  defp help_user(_req={uid,frompid}) do
+    answers = ["User actions (see also .help):",
+               "@remind <someone> <msg> as soon as he /join this channel",
+               "@chan will highlight everyone else in the current channel"
+              ]
+    send frompid, {:answer, {uid, answers}}
+  end
+
+  defp set_reminder(_parsed={cmd, user}, req={_uid,frompid}, infos={msg,from,chan}) do
     case chan do
       nil ->
         answer = "I can't do that on private messages!"
@@ -104,12 +139,12 @@ defmodule Core.PluginBrain do
             send frompid, {:answer, {chan, from, [answer]}}
           _ ->
             match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-            Core.PluginReminder.set_reminder(:core_plugin_reminder, _reminder = {user, match["memo"]}, opts, req)
+            Core.PluginReminder.set_reminder(:core_plugin_reminder, _reminder = {user, match["memo"]}, req, infos)
         end
     end
   end
 
-  defp forecast(params, req={uid, frompid, _msg}) do
+  defp forecast(params, req={uid, frompid}) do
     case params do
       [] ->
         answer = "Please specify the scope and the city."

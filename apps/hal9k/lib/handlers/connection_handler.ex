@@ -11,6 +11,10 @@ defmodule Hal.ConnectionHandler do
     GenServer.call(pid, {:get_state})
   end
 
+  def get_users(pid, chan) do
+    GenServer.call(pid, {:get_users, chan})
+  end
+
   def answer(pid, answers) do
     GenServer.cast(pid, {:answer, answers})
   end
@@ -38,6 +42,11 @@ defmodule Hal.ConnectionHandler do
 
   def handle_call({:get_state}, _frompid, state) do
     {:reply, state, state}
+  end
+
+  def handle_call({:get_users, chan}, _frompid, state) do
+    res = {state.nick, ExIrc.Client.channel_users(state.client, chan)}
+    {:reply, res, state}
   end
 
   def handle_call({:has_user, chan, user}, _frompid, state) do
@@ -85,10 +94,10 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_info({:joined, chan, from}, state) do
-    opts = {nil, from.nick, chan}
-    uid = give_me_an_id(opts)
-    true = :ets.insert(state.uids, {uid, opts})
-    Core.PluginBrain.get_reminder(:core_plugin_brain, _infos={chan, from.nick}, _req={uid,self(),nil})
+    infos = {nil, from.nick, chan}
+    uid = give_me_an_id(infos)
+    true = :ets.insert(state.uids, {uid, infos})
+    Core.PluginBrain.get_reminder(:core_plugin_brain, _req={uid, self()}, _infos={nil,from.nick,chan})
     {:noreply, state}
   end
 
@@ -96,7 +105,7 @@ defmodule Hal.ConnectionHandler do
     opts = {msg, from.nick, chan}
     uid = give_me_an_id(opts)
     true = :ets.insert(state.uids, {uid, opts})
-    Core.PluginBrain.double_rainbow(:core_plugin_brain, _req={uid,self(),msg})
+    Core.PluginBrain.parse_text(:core_plugin_brain, _req={uid, self()}, {msg,from,chan})
     {:noreply, state}
   end
 
@@ -132,20 +141,27 @@ defmodule Hal.ConnectionHandler do
   end
 
   defp generic_received(opts={msg,_from,_chan}, state) do
-    if String.at(msg, 0) == "." do
-      uid = give_me_an_id(opts)
-      true = :ets.insert(state.uids, {uid, opts})
-
-      [cmd | params] = String.split(msg)
-      Core.PluginBrain.command(:core_plugin_brain, opts, _req={uid,self(),msg})
+    case String.at(msg, 0) do
+      "." ->
+        uid = generate_request(opts, state)
+        Core.PluginBrain.command(:core_plugin_brain, _req={uid, self()}, opts)
+      "@" ->
+        uid = generate_request(opts, state)
+        Core.PluginBrain.user_action(:core_plugin_brain, _req={uid, self()}, opts)
     end
+  end
+
+  defp generate_request(opts, state) do
+    uid = give_me_an_id(opts)
+    true = :ets.insert(state.uids, {uid, opts})
+    uid
   end
 
   defp answer(answers, chan, from, state) do
     Enum.each(answers, &(
           case chan do
             nil -> ExIrc.Client.msg state.client, :privmsg, from, &1 # private_msg
-            _ -> ExIrc.Client.msg state.client, :privmsg, chan, &1   # chan
+            _   -> ExIrc.Client.msg state.client, :privmsg, chan, &1
           end)
     )
   end
