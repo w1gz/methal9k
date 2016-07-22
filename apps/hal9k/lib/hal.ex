@@ -3,22 +3,26 @@ defmodule Hal do
 
   defmodule State do
     defstruct client: nil,
-    host: nil,
-    port: nil,
-    chans: nil,
-    pass: nil,
-    nick: nil,
-    user: nil,
-    name: nil,
-    uids: nil
+      host: nil,
+      port: nil,
+      chans: nil,
+      pass: nil,
+      nick: nil,
+      user: nil,
+      name: nil,
+      uids: nil
   end
 
   def start(type, [credentials]) do
     import Supervisor.Spec, warn: false
 
-    # read file & retrieve raw server infos
-    {:ok, data} = File.read("apps/hal9k/" <> credentials)
-    match = Regex.named_captures(~r/\[.*\]\n(?<server>.*)\n\n\[/muis, data)
+    # parse connection/server infos
+    data = case File.read("apps/hal9k/" <> credentials) do
+             {:ok, data} -> data
+             {:error, _reason} -> # provides a "dummy" conf
+               "[local]\nnick: hal\nuser: hal\nname: hal\nhost: 127.0.0.1\nport: 6667\npass: \nchans: #yolo, #too, #hal\n"
+           end
+    match = Regex.named_captures(~r/\[.*\]\n(?<server>.*)\n+\[?/muis, data)
 
     # format for our internal struture
     conf = String.split(match["server"], "\n")

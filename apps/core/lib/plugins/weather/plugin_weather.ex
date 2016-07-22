@@ -26,8 +26,14 @@ defmodule Core.PluginWeather do
   # Server callbacks
   def init(_state) do
     # TODO reduce/simplify the path to the weather token
-    {:ok, appid} = File.read("apps/core/lib/plugins/weather/weather_token.sec")
-    IO.puts("[INFO] token api was successfully read")
+    appid = case File.read("apps/core/lib/plugins/weather/weather_token.sec") do
+              {:ok, appid} ->
+                IO.puts("[INFO] token api was successfully read")
+                appid
+              _ ->
+                IO.puts("[WARN] token api not found, plugin_weather unavailable")
+                ""
+            end
 
     # construct our initial state
     appid = String.strip(appid)
