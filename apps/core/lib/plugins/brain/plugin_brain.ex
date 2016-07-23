@@ -55,6 +55,7 @@ defmodule Core.PluginBrain do
     case cmd do
       ".help"       -> help_cmd(req)
       ".weather"    -> weather(params, req)
+      ".time"       -> time(params, req)
       ".remind"     -> set_reminder({cmd, hd(params)}, req, infos)
       ".chan"       -> highlight_channel(req, infos)
       ".flip"       -> emojis(req, :flip)
@@ -69,6 +70,10 @@ defmodule Core.PluginBrain do
   defp double_rainbow(req, infos) do
     # TODO parse with a nlp framework (nltk?)
     {req, infos}
+  end
+
+  defp time(params, req) do
+    Core.PluginTime.current(:core_plugin_time, params, req)
   end
 
   defp emojis(_req={uid,frompid}, emoji) do
@@ -114,7 +119,8 @@ defmodule Core.PluginBrain do
   end
 
   defp help_cmd(_req={uid,frompid}) do
-    answers = [" .weather <scope?> <city> (optional scope for 'hourly' or 'daily' forecast)",
+    answers = [" .weather <scope?> <city> scope can optionally be set to hourly or daily",
+               " .time <timezone or city> timezone should be in the tz format (i.e. Country/City)",
                " .remind <someone> <msg> as soon as he /join this channel",
                " .chan will highlight everyone else in the current channel"
               ]
