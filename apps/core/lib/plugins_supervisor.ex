@@ -10,6 +10,7 @@ defmodule Core.PluginSupervisor do
     children = [
       worker(Core.PluginBrain, [args, [restart: :permanent, name: :core_plugin_brain]]),
       worker(Core.PluginWeather, [args, [restart: :permanent, name: :core_plugin_weather]]),
+      worker(Core.PluginTime, [args, [restart: :permanent, name: :core_plugin_time]]),
       supervisor(Core.PluginReminderSupervisor, args, restart: :permanent)
     ]
 
