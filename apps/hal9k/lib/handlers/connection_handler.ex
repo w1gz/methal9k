@@ -148,6 +148,10 @@ defmodule Hal.ConnectionHandler do
       "@" ->
         uid = generate_request(opts, state)
         Core.PluginBrain.user_action(:core_plugin_brain, _req={uid, self()}, opts)
+      "!" ->
+        uid = generate_request(opts, state)
+        Core.PluginBrain.reaction(:core_plugin_brain, _req={uid, self()}, opts)
+      _ -> nil
     end
   end
 

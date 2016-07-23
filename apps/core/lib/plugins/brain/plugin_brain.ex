@@ -15,6 +15,10 @@ defmodule Core.PluginBrain do
     GenServer.cast(pid, {:user_action, req, infos})
   end
 
+  def reaction(pid, req, infos) do
+    GenServer.cast(pid, {:reaction, req, infos})
+  end
+
   def parse_text(pid, req, infos) do
     GenServer.cast(pid, {:parse_text, req, infos})
   end
@@ -36,6 +40,11 @@ defmodule Core.PluginBrain do
 
   def handle_cast({:user_action, req, infos}, state) do
     big_kahuna_burger(req, infos)
+    {:noreply, state}
+  end
+
+  def handle_cast({:reaction, req, infos}, state) do
+    quarter_pounder_with_cheese(req, infos)
     {:noreply, state}
   end
 
@@ -72,10 +81,19 @@ defmodule Core.PluginBrain do
   defp big_kahuna_burger(req, infos={msg,_from,_chan}) do
     [cmd | params] = String.split(msg)
     case cmd do
-      "@help"    -> help_user(req)
-      "@remind"  -> set_reminder({cmd, hd(params)}, req, infos)
-      "@chan"    -> highlight_channel(req, infos)
-      _          -> nil
+      "@help"   -> help_user(req)
+      "@remind" -> set_reminder({cmd, hd(params)}, req, infos)
+      "@chan"   -> highlight_channel(req, infos)
+      _         -> nil
+    end
+  end
+
+  defp quarter_pounder_with_cheese(req, _infos={msg,_from,_chan}) do
+    [cmd | _params] = String.split(msg)
+    case cmd do
+      "!help" -> help_reaction(req)
+      "!flip" -> do_a_table_flip(req)
+      _       -> nil
     end
   end
 
@@ -83,6 +101,11 @@ defmodule Core.PluginBrain do
   defp double_rainbow(req, infos) do
     # TODO parse with a nlp framework (nltk?)
     {req, infos}
+  end
+
+  defp do_a_table_flip(_req={uid,frompid}) do
+    answers = ["(╯°□°）╯︵ ┻━┻"]
+    send frompid, {:answer, {uid, answers}}
   end
 
   defp highlight_channel(_req={uid,frompid}, _infos={_msg,from,chan}) do
@@ -112,17 +135,24 @@ defmodule Core.PluginBrain do
   end
 
   defp help_cmd(_req={uid,frompid}) do
-    answers = ["Commands (see also @help):",
-               ".weather <city>",
-               ".forecast <scope> <city> (scope can be either 'hourly' or 'daily')"
+    answers = ["Commands (see also @help & !help):",
+               "  .weather <city>",
+               "  .forecast <scope> <city> (scope can be either 'hourly' or 'daily')"
               ]
     send frompid, {:answer, {uid, answers}}
   end
 
   defp help_user(_req={uid,frompid}) do
-    answers = ["User actions (see also .help):",
-               "@remind <someone> <msg> as soon as he /join this channel",
-               "@chan will highlight everyone else in the current channel"
+    answers = ["User actions (see also .help & !help):",
+               "  @remind <someone> <msg> as soon as he /join this channel",
+               "  @chan will highlight everyone else in the current channel"
+              ]
+    send frompid, {:answer, {uid, answers}}
+  end
+
+  defp help_reaction(_req={uid,frompid}) do
+    answers = ["Reactions (see also .help, @help):",
+               "  !flip do a table flip"
               ]
     send frompid, {:answer, {uid, answers}}
   end
