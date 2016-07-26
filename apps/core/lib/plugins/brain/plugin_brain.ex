@@ -175,23 +175,21 @@ defmodule Core.PluginBrain do
   end
 
   defp forecast(params, req={uid, frompid}) do
+    mini_usage = ".forecast <scope> <city>"
     case params do
       [] ->
-        answer = "Please specify the scope and the city."
+        answer = "Missing arguments (#{mini_usage})."
         send frompid, {:answer, {uid, [answer]}}
-        throw(answer)
       [_scope | []] ->
-        answer = "Please specify a city."
+        answer = "Missing one argument (#{mini_usage})."
         send frompid, {:answer, {uid, [answer]}}
-        throw(answer)
       ["hourly" | city]  ->
         Core.PluginWeather.hourly(:core_plugin_weather, city, req)
       ["daily" | city] ->
         Core.PluginWeather.daily(:core_plugin_weather, city, req)
       _ ->
-        answer = "Please review your scope (hourly or daily)."
+        answer = "Please review your scope: hourly or daily."
         send frompid, {:answer, {uid, [answer]}}
-        throw(answer)
     end
   end
 

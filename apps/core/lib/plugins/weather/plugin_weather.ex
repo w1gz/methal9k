@@ -86,7 +86,7 @@ defmodule Core.PluginWeather do
       true ->
         answer = "Please give me a location to work with."
         send frompid, {:answer, {uid, [answer]}}
-        throw("No arguments for weather, crashing")
+        ""
     end
 
     # request some weather informations
@@ -99,9 +99,8 @@ defmodule Core.PluginWeather do
     case code do
       200 -> output
       _   ->
-        answer = "¡Bonk! Request failed with HTTP.code == #{code}"
+        answer = "HTTP Request failed with #{code}"
         send frompid, {:answer, {uid, [answer]}}
-        throw(answer)
     end
   end
 
@@ -135,13 +134,12 @@ defmodule Core.PluginWeather do
       error_msg = raw["message"]
       answer = "The API returns #{code}, #{error_msg}"
       send frompid, {:answer, {uid, [answer]}}
-      throw(answer)
-    end
-
-    case weather_type do
-      :current_weather -> format_current_weather(raw)
-      :forecast_hourly -> format_forecast_hourly(raw)
-      :forecast_daily  -> format_forecast_daily(raw)
+    else
+      case weather_type do
+        :current_weather -> format_current_weather(raw)
+        :forecast_hourly -> format_forecast_hourly(raw)
+        :forecast_daily  -> format_forecast_daily(raw)
+      end
     end
   end
 
