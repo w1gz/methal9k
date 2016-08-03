@@ -11,14 +11,6 @@ defmodule Core.PluginBrain do
     GenServer.cast(pid, {:command, req, infos})
   end
 
-  def user_action(pid, req, infos) do
-    GenServer.cast(pid, {:user_action, req, infos})
-  end
-
-  def reaction(pid, req, infos) do
-    GenServer.cast(pid, {:reaction, req, infos})
-  end
-
   def parse_text(pid, req, infos) do
     GenServer.cast(pid, {:parse_text, req, infos})
   end
@@ -35,16 +27,6 @@ defmodule Core.PluginBrain do
 
   def handle_cast({:command, req, infos}, state) do
     check_out_the_big_brain_on_brett(req, infos)
-    {:noreply, state}
-  end
-
-  def handle_cast({:user_action, req, infos}, state) do
-    big_kahuna_burger(req, infos)
-    {:noreply, state}
-  end
-
-  def handle_cast({:reaction, req, infos}, state) do
-    quarter_pounder_with_cheese(req, infos)
     {:noreply, state}
   end
 
@@ -68,32 +50,18 @@ defmodule Core.PluginBrain do
 
 
   # Internal functions
-  defp check_out_the_big_brain_on_brett(req, _infos={msg,_from,_chan}) do
+  defp check_out_the_big_brain_on_brett(req, infos={msg,_from,_chan}) do
     [cmd | params] = String.split(msg)
     case cmd do
-      ".help"     -> help_cmd(req)
-      ".weather"  -> weather(params, req)
-      ".forecast" -> forecast(params, req)
-      _           -> nil
-    end
-  end
-
-  defp big_kahuna_burger(req, infos={msg,_from,_chan}) do
-    [cmd | params] = String.split(msg)
-    case cmd do
-      "@help"   -> help_user(req)
-      "@remind" -> set_reminder({cmd, hd(params)}, req, infos)
-      "@chan"   -> highlight_channel(req, infos)
-      _         -> nil
-    end
-  end
-
-  defp quarter_pounder_with_cheese(req, _infos={msg,_from,_chan}) do
-    [cmd | _params] = String.split(msg)
-    case cmd do
-      "!help" -> help_reaction(req)
-      "!flip" -> do_a_table_flip(req)
-      _       -> nil
+      ".help"       -> help_cmd(req)
+      ".weather"    -> weather(params, req)
+      ".remind"     -> set_reminder({cmd, hd(params)}, req, infos)
+      ".chan"       -> highlight_channel(req, infos)
+      ".flip"       -> emojis(req, :flip)
+      ".shrug"      -> emojis(req, :shrug)
+      ".disapprove" -> emojis(req, :disapprove)
+      ".dealwithit" -> emojis(req, :dealwithit)
+      _             -> nil
     end
   end
 
@@ -103,17 +71,22 @@ defmodule Core.PluginBrain do
     {req, infos}
   end
 
-  defp do_a_table_flip(_req={uid,frompid}) do
-    answers = ["(╯°□°）╯︵ ┻━┻"]
-    send frompid, {:answer, {uid, answers}}
+  defp emojis(_req={uid,frompid}, emoji) do
+    answer = case emoji do
+               :flip       -> "(╯°□°）╯︵ ┻━┻"
+               :shrug      -> "¯\_(ツ)_/¯"
+               :disapprove -> "ಠ_ಠ"
+               :dealwithit -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
+             end
+    send frompid, {:answer, {uid, [answer]}}
   end
 
   defp highlight_channel(_req={uid,frompid}, _infos={_msg,from,chan}) do
     answers = case chan do
-                nil ->          # avoid private messages
-                  ["This is not a channel"]
-                _   ->          # gather the user list
-                  {botname, users} = GenServer.call(frompid, {:get_users, chan})
+                # avoid private messages
+                nil -> ["This is not a channel"]
+                _   -> # gather the user list
+                {botname, users} = GenServer.call(frompid, {:get_users, chan})
                   answer = Enum.filter(users, &(&1 != from and &1 != botname))
                   |> Enum.map_join(" ", &(&1))
 
@@ -130,29 +103,20 @@ defmodule Core.PluginBrain do
     Core.PluginReminder.remind_someone(:core_plugin_reminder, req, infos)
   end
 
-  defp weather(params, req) do
-    Core.PluginWeather.current_weather(:core_plugin_weather, params, req)
+  defp weather(params, req={uid, frompid}) do
+    case params do
+      [] -> send frompid, {:answer, {uid, ["Missing arguments"]}}
+      ["hourly" | arg2] -> Core.PluginWeather.hourly(:core_plugin_weather, arg2, req)
+      ["daily" | arg2]  -> Core.PluginWeather.daily(:core_plugin_weather, arg2, req)
+      [_city | _]       -> Core.PluginWeather.current(:core_plugin_weather, params, req)
+      _ -> send frompid, {:answer, {uid, ["Nope"]}}
+    end
   end
 
   defp help_cmd(_req={uid,frompid}) do
-    answers = ["Commands (see also @help & !help):",
-               "  .weather <city>",
-               "  .forecast <scope> <city> (scope can be either 'hourly' or 'daily')"
-              ]
-    send frompid, {:answer, {uid, answers}}
-  end
-
-  defp help_user(_req={uid,frompid}) do
-    answers = ["User actions (see also .help & !help):",
-               "  @remind <someone> <msg> as soon as he /join this channel",
-               "  @chan will highlight everyone else in the current channel"
-              ]
-    send frompid, {:answer, {uid, answers}}
-  end
-
-  defp help_reaction(_req={uid,frompid}) do
-    answers = ["Reactions (see also .help, @help):",
-               "  !flip do a table flip"
+    answers = [" .weather <scope?> <city> (optional scope for 'hourly' or 'daily' forecast)",
+               " .remind <someone> <msg> as soon as he /join this channel",
+               " .chan will highlight everyone else in the current channel"
               ]
     send frompid, {:answer, {uid, answers}}
   end
@@ -171,25 +135,6 @@ defmodule Core.PluginBrain do
             match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
             Core.PluginReminder.set_reminder(:core_plugin_reminder, _reminder = {user, match["memo"]}, req, infos)
         end
-    end
-  end
-
-  defp forecast(params, req={uid, frompid}) do
-    mini_usage = ".forecast <scope> <city>"
-    case params do
-      [] ->
-        answer = "Missing arguments (#{mini_usage})."
-        send frompid, {:answer, {uid, [answer]}}
-      [_scope | []] ->
-        answer = "Missing one argument (#{mini_usage})."
-        send frompid, {:answer, {uid, [answer]}}
-      ["hourly" | city]  ->
-        Core.PluginWeather.hourly(:core_plugin_weather, city, req)
-      ["daily" | city] ->
-        Core.PluginWeather.daily(:core_plugin_weather, city, req)
-      _ ->
-        answer = "Please review your scope: hourly or daily."
-        send frompid, {:answer, {uid, [answer]}}
     end
   end
 
