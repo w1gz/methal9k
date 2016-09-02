@@ -1,4 +1,8 @@
 defmodule Core.PluginTime do
+  @moduledoc """
+  Provide Time capability, including timezone
+  """
+
   use GenServer
 
   defmodule Credentials do
@@ -12,6 +16,22 @@ defmodule Core.PluginTime do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
+  @doc """
+  Fetches the current time for a city or timezone (tz format).
+
+  `pid` the pid of the GenServer that will be called.
+
+  `params` list of string containing either the city name or a timezone.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginTime.current(pid, ["las", "vegas"], {uid, frompid})
+  iex> Core.PluginTime.current(pid, ["America/Chicago"], {uid, frompid})
+  ```
+  """
   def current(pid, params, req) do
     GenServer.cast(pid, {:current_time, params, req})
   end
@@ -64,7 +84,7 @@ defmodule Core.PluginTime do
                    tz_json["timeZoneId"]
                end
     city = Enum.join(params, " ")
-    dt = Timex.DateTime.now(timezone)
+    dt = Timex.now(timezone)
     {:ok, current} = Timex.format(dt, "%F - %T in #{city} (#{timezone}, %:z UTC)", :strftime)
     send frompid, {:answer, {uid, [current]}}
   end
@@ -80,9 +100,9 @@ defmodule Core.PluginTime do
   end
 
   defp quick_request(url) do
-  with {:ok, res} <- HTTPoison.get(url, []), %HTTPoison.Response{body: body} <- res do
-    Poison.decode!(body)
+    with {:ok, res} <- HTTPoison.get(url, []), %HTTPoison.Response{body: body} <- res do
+      Poison.decode!(body)
+    end
   end
-end
 
 end

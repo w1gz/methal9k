@@ -1,4 +1,8 @@
 defmodule Core.PluginWeather do
+  @moduledoc """
+  Provide facility for weather and forecast informations.
+  """
+
   use GenServer
 
   defmodule Credentials do
@@ -11,14 +15,69 @@ defmodule Core.PluginWeather do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
+  @doc """
+  Fetch the current weather for a given location.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `params` list of string containing the location.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginWeather.current(pid, ["chicago"], {uid, frompid})
+  ```
+  """
   def current(pid, params, req) do
     GenServer.cast(pid, {:current, params, req})
   end
 
+  @doc """
+  Fetch a 5-day forecast with intervals of 3 hours. Only the 4 first answers are
+  returned. Which means if you ask the weather at 12:00, you'll get the weather for:
+  - 12:00
+  - 15:00
+  - 18:00
+  - 21:00
+
+  `pid` the pid of the GenServer that will be called.
+
+  `params` list of string containing the location.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginWeather.hourly(pid, ["chicago"], {uid, frompid})
+  ```
+  """
   def hourly(pid, params, req) do
     GenServer.cast(pid, {:forecast_hourly, params, req})
   end
 
+  @doc """
+  Fetch a 12-day forecast with intervals of 1 day. Only the 4 first answers are
+  returned. Which means if you ask the weather for monday the 10th, you'll get the weather for:
+  - monday 10th
+  - tuesday 11th
+  - wednesday 12th
+  - Thursday 13th
+
+  `pid` the pid of the GenServer that will be called.
+
+  `params` list of string containing the location.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginWeather.daily(pid, ["chicago"], {uid, frompid})
+  ```
+  """
   def daily(pid, params, req) do
     GenServer.cast(pid, {:forecast_daily, params, req})
   end
@@ -136,7 +195,7 @@ defmodule Core.PluginWeather do
   defp format_forecast_hourly(raw) do
     answers =
       Enum.filter(raw["list"], fn(fday) ->
-        {:ok, hnow} = Timex.format(Timex.DateTime.now, "%H", :strftime)
+        {:ok, hnow} = Timex.format(Timex.now, "%H", :strftime)
         {_, {hour,_min,_sec}} = :calendar.gregorian_seconds_to_datetime(fday["dt"])
         hnow >= hour
       end)
