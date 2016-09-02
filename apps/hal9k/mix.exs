@@ -25,9 +25,8 @@ defmodule Hal.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.11.4"},
       {:exirc, "~> 0.11.0"},
-      {:uuid, "~> 1.1.3"},
+      {:uuid, "~> 1.1.4"},
     ]
   end
 

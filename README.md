@@ -9,7 +9,7 @@ GenServer, Supervisor or even Hot code loading.
 
 Basic requirements:
 - Erlang (>= OTP 18)
-- Elixir (master branch ideally)
+- Elixir (latest stable branch, ideally)
 
 
 # Improvements #

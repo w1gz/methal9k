@@ -1,4 +1,8 @@
 defmodule Hal.ConnectionHandlerKeeper do
+  @moduledoc """
+  Keep & protect the state of a connection handler
+  """
+
   use GenServer
 
   # Client API
@@ -6,6 +10,17 @@ defmodule Hal.ConnectionHandlerKeeper do
     GenServer.start_link(__MODULE__, state, opts)
   end
 
+  @doc """
+  Retrieve the ETS table stored in its internal state and give it to the first
+  person who ask for it.
+
+  `pid` the pid of the GenServer that will be called
+
+  ##Example
+  ```Elixir
+  iex> Hal.ConnectionHandlerKeeper.give_me_your_table(pid)
+  ```
+  """
   def give_me_your_table(pid) do
     GenServer.call(pid, :give_your_table)
   end

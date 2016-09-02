@@ -1,4 +1,9 @@
 defmodule Hal.ConnectionHandler do
+  @moduledoc """
+  The module will maintain a link to the ExIrc library in order to intercept and
+  send message to IRC.
+  """
+
   use GenServer
 
   # Client
@@ -7,21 +12,68 @@ defmodule Hal.ConnectionHandler do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
+  @doc """
+  Return the current internal state of this module. Useful for sending messages
+  directly to the ExIrc process.
+
+  `pid` the pid of the GenServer that will be called.
+
+  ##Example
+  ```Elixir
+  iex> Hal.ConnectionHandler.get_state(pid)
+  ```
+  """
   def get_state(pid) do
     GenServer.call(pid, {:get_state})
   end
 
+  @doc """
+  Return the list of users in a given IRC `chan`.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `chan` the IRC channel in which you want to retrieve the list of users.
+
+  ##Example
+  ```Elixir
+  iex> Hal.ConnectionHandler.get_users(pid, "#awesome-chan")
+  """
   def get_users(pid, chan) do
     GenServer.call(pid, {:get_users, chan})
   end
 
+  @doc """
+  Uses the ExIrc process to send the given `answers` to IRC.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `answer` the IRC channel in which you want to retrieve a list of users.
+
+  ##Example
+  ```Elixir
+  iex> Hal.ConnectionHandler.answer(pid, ["i'm", "a", "answer"])
+  """
   def answer(pid, answers) do
     GenServer.cast(pid, {:answer, answers})
   end
 
+  @doc """
+  Check wether the given `user` is present in a specific `chan` or not.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `user` that you want to check the presence.
+
+  `chan` channel in which to look for the `user`.
+
+  ##Example
+  ```Elixir
+  iex> Hal.ConnectionHandler.has_user(pid, "#awsome-chan", "john")
+  """
   def has_user(pid, chan, user) do
     GenServer.call(pid, {:has_user, chan, user})
   end
+
 
   # Server callbacks
   def init(state) do
@@ -120,7 +172,6 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_info(_msg, state) do
-    # debug only
     # IO.inspect(msg)
     {:noreply, state}
   end

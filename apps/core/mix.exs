@@ -27,10 +27,9 @@ defmodule Core.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.11.4"},
-      {:httpoison, "~> 0.8.2"},
-      {:poison, "~> 2.1.0"},
-      {:timex, "2.1.6"},
+      {:httpoison, "~> 0.9.0"},
+      {:poison, "~> 2.2.0"},
+      {:timex, "3.0.8"},
     ]
   end
 

@@ -9,6 +9,8 @@ defmodule Methal9k.Mixfile do
   end
 
   defp deps do
-    []
+    [
+      {:ex_doc, "~> 0.13.0"},
+    ]
   end
 end

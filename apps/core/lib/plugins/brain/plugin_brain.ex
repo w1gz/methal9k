@@ -1,4 +1,9 @@
 defmodule Core.PluginBrain do
+  @moduledoc """
+  The brain plugin tries to dispatch the various requests to their appropriate
+  process.
+  """
+
   use GenServer
 
   # Client API
@@ -7,14 +12,68 @@ defmodule Core.PluginBrain do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
+  @doc """
+  Find the appropriate plugin or process to call depending on the task to do
+  (generally determined by the `msg` argument).
+
+  `pid` the pid of the GenServer that will be called.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  `msg` initial and complete message (include the command).
+  `from` the person who initiated the reminder.
+  `chan` the channel on which this happened.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginBrain.command(pid, {uid, frompid}), {msg, from, chan}}
+  ```
+  """
   def command(pid, req, infos) do
     GenServer.cast(pid, {:command, req, infos})
   end
 
+  @doc """
+  Parse the `msg` string and try to make sense of it (Natural Language
+  Processing).
+
+  `pid` the pid of the GenServer that will be called.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  `msg` initial and complete message (include the command).
+  `from` the person who initiated the reminder.
+  `chan` the channel on which this happened.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginBrain.parse_text(pid, {uid, frompid}), {msg, from, chan})
+  ```
+  """
   def parse_text(pid, req, infos) do
     GenServer.cast(pid, {:parse_text, req, infos})
   end
 
+
+  @doc """
+  Forward the call the plugin in charge of retrieving the reminders.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  `msg` initial and complete message (include the command).
+  `from` the person who initiated the reminder.
+  `chan` the channel on which this happened.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginBrain.get_reminder(pid, {uid, frompid}), {msg, from, chan})
+  ```
+  """
   def get_reminder(pid, req, infos) do
     GenServer.cast(pid, {:get_reminder, req, infos})
   end
@@ -105,7 +164,7 @@ defmodule Core.PluginBrain do
   end
 
   defp get_reminder(req, infos) do
-    Core.PluginReminder.remind_someone(:core_plugin_reminder, req, infos)
+    Core.PluginReminder.get(:core_plugin_reminder, req, infos)
   end
 
   defp weather(params, req={uid, frompid}) do

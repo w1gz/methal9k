@@ -1,4 +1,8 @@
 defmodule Core.PluginReminder do
+  @moduledoc """
+  Leave messages/reminder for a disconnected contact
+  """
+
   use GenServer
 
   # Client API
@@ -7,14 +11,71 @@ defmodule Core.PluginReminder do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  def set_reminder(pid, reminder, req, infos) do
+  @doc """
+  Sets a reminder for a person in a specific channel. This doesn't work on
+  private messages.
+
+  `user` is the person that needs to be reminded.
+  `memo` message to register for the `user`.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  `msg` initial and complete message (include the command).
+  `from` the person who initiated the reminder.
+  `chan` the channel on which this happened.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginReminder.set(pid, {user, memo}, {uid, frompid}, {msg, from, chan})
+  ```
+  """
+  def set(pid, reminder, req, infos) do
     GenServer.call(pid, {:set_reminder, reminder, req, infos})
   end
 
-  def remind_someone(pid, req, infos) do
-    GenServer.call(pid, {:remind_someone, req, infos})
+  @doc"""
+  Retrieve a reminder for a specific person in the appropriate channel.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `uid` is the unique identifier for this request. Whereas `frompid` is the
+  process for which the answer will be sent.
+
+  `msg` initial and complete message (include the command).
+  `from` the person who initiated the reminder.
+  `chan` the channel on which this happened.
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginReminder.get(pid, {uid, frompid}, {msg, from, chan})
+  ```
+  """
+  def get(pid, req, infos) do
+    GenServer.call(pid, {:get_reminder, req, infos})
   end
 
+  @doc """
+  Helper for manually purge expired reminders. Note that expired reminders will
+  still be sent to their respective channels upon removal.
+
+  `pid` the pid of the GenServer that will be called.
+
+  `timeshift` is the limit at which we consider a reminder "too old".
+
+  The available `unit` for the timeshift are the following:
+  - :seconds
+  - :minutes
+  - :hours
+  - :days
+
+  ## Examples
+  ```Elixir
+  iex> Core.PluginReminder.purge_expired(pid, timeshift, unit)
+  ```
+  """
   def purge_expired(pid, timeshift, unit) do
     GenServer.cast(pid, {:purge_expired, timeshift, unit})
   end
@@ -28,7 +89,7 @@ defmodule Core.PluginReminder do
 
   def handle_call({:set_reminder, _to_remind={to, memo}, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
     reminders = state[:reminders]
-    current_time = Timex.DateTime.now
+    current_time = Timex.now
     true = :ets.insert(reminders, {chan, from, to, memo, current_time})
 
     # construct and send the answer
@@ -39,7 +100,7 @@ defmodule Core.PluginReminder do
     {:reply, :ok, state}
   end
 
-  def handle_call({:remind_someone, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
+  def handle_call({:get_reminder, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
     reminders = state[:reminders]
     matched = :ets.match(reminders, {chan, :'$1', from, :'$2', :'$3'})
     send_answers(matched, from, uid, frompid)
@@ -64,7 +125,7 @@ defmodule Core.PluginReminder do
   # Internal functions
   defp purge_expired_reminders(reminders, unit, timeshift, frompid) do
     # fetch the expired memo
-    current_time = Timex.DateTime.now
+    current_time = Timex.now
     matched = :ets.match(reminders, {:'$1', :'$2', :'$3', :'$4', :'$5'})
     Enum.each(matched, fn(reminder=[chan, from, to, memo, time]) ->
       if Timex.before?(shift_time(time, unit, timeshift), current_time) == true do

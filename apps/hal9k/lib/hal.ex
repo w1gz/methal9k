@@ -1,13 +1,30 @@
 defmodule Hal do
+  @moduledoc """
+  Initialize an IRC connection based on various credentials and parameters
+  """
+
   use Application
 
+  @moduledoc """
+  This module holds the global hal9k state in order to have a nice IRC
+  connection. Those informations are:
+  - `client` store the ExIrc client state
+  - `host` irc host (chat.freenode.net)
+  - `port`  irc port (6667)
+  - `chans` irc channels (["#awesome-chan", "pulp-fiction"]
+  - `nick` login for the irc server
+  - `pass` the associated password
+  - `user` misc infos
+  - `name` misc infos
+  - `uids` ETS table storing the current jobs being run
+  """
   defmodule State do
     defstruct client: nil,
       host: nil,
       port: nil,
       chans: nil,
-      pass: nil,
       nick: nil,
+      pass: nil,
       user: nil,
       name: nil,
       uids: nil

@@ -1,8 +1,8 @@
-/_build
-/cover
-/deps
-/doc
-/venv
+_build/
+cover/
+deps/
+doc/
+venv/
 erl_crash.dump
 *.ez
 mix.lock
