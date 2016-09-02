@@ -5,6 +5,9 @@ defmodule Core.PluginBrain do
   """
 
   use GenServer
+  alias Core.PluginReminder, as: Reminder
+  alias Core.PluginWeather, as: Weather
+  alias Core.PluginTime, as: Time
 
   # Client API
   def start_link(args, opts \\ []) do
@@ -109,7 +112,7 @@ defmodule Core.PluginBrain do
 
 
   # Internal functions
-  defp check_out_the_big_brain_on_brett(req, infos={msg,_from,_chan}) do
+  defp check_out_the_big_brain_on_brett(req, infos = {msg, _, _}) do
     [cmd | params] = String.split(msg)
     case cmd do
       ".help"       -> help_cmd(req)
@@ -132,10 +135,10 @@ defmodule Core.PluginBrain do
   end
 
   defp time(params, req) do
-    Core.PluginTime.current(:core_plugin_time, params, req)
+    Time.current(:core_plugin_time, params, req)
   end
 
-  defp emojis(_req={uid,frompid}, emoji) do
+  defp emojis({uid, frompid}, emoji) do
     answer = case emoji do
                :flip       -> "(╯°□°）╯︵ ┻━┻"
                :shrug      -> "¯\_(ツ)_/¯"
@@ -145,61 +148,66 @@ defmodule Core.PluginBrain do
     send frompid, {:answer, {uid, [answer]}}
   end
 
-  defp highlight_channel(_req={uid,frompid}, _infos={_msg,from,chan}) do
+  defp highlight_channel({uid, frompid}, {_msg, from, chan}) do
     answers = case chan do
-                # avoid private messages
                 nil -> ["This is not a channel"]
-                _   -> # gather the user list
-                {botname, users} = GenServer.call(frompid, {:get_users, chan})
-                  answer = Enum.filter(users, &(&1 != from and &1 != botname))
-                  |> Enum.map_join(" ", &(&1))
-
-                  # alternative answer if nobody relevant is found
-                  answers = case answer do
-                              "" -> ["#{from}, there is nobody else in this channel."]
-                              _ -> ["cc " <> answer]
-                            end
+                _   -> retrieve_users(frompid, from, chan)
               end
     send frompid, {:answer, {uid, answers}}
   end
 
-  defp get_reminder(req, infos) do
-    Core.PluginReminder.get(:core_plugin_reminder, req, infos)
+  defp retrieve_users(frompid, from, chan) do
+    {botname, users} = GenServer.call(frompid, {:get_users, chan})
+    answer = users
+    |> Enum.filter(&(&1 != from and &1 != botname))
+    |> Enum.map_join(" ", &(&1))
+
+    # choose an alternative answer if nobody relevant is found
+    case answer do
+      "" -> ["#{from}, there is nobody else in this channel."]
+      _ -> ["cc " <> answer]
+    end
   end
 
-  defp weather(params, req={uid, frompid}) do
+  defp get_reminder(req, infos) do
+    Reminder.get(:core_plugin_reminder, req, infos)
+  end
+
+  defp weather(params, req = {uid, frompid}) do
     case params do
       [] -> send frompid, {:answer, {uid, ["Missing arguments"]}}
-      ["hourly" | arg2] -> Core.PluginWeather.hourly(:core_plugin_weather, arg2, req)
-      ["daily" | arg2]  -> Core.PluginWeather.daily(:core_plugin_weather, arg2, req)
-      [_city | _]       -> Core.PluginWeather.current(:core_plugin_weather, params, req)
+      ["hourly" | arg2] -> Weather.hourly(:core_plugin_weather, arg2, req)
+      ["daily" | arg2]  -> Weather.daily(:core_plugin_weather, arg2, req)
+      [_city | _]       -> Weather.current(:core_plugin_weather, params, req)
       _ -> send frompid, {:answer, {uid, ["Nope"]}}
     end
   end
 
-  defp help_cmd(_req={uid,frompid}) do
-    answers = [" .weather <scope?> <city> scope can optionally be set to hourly or daily",
-               " .time <timezone or city> timezone should be in the tz format (i.e. Country/City)",
-               " .remind <someone> <msg> as soon as he /join this channel",
-               " .chan will highlight everyone else in the current channel"
-              ]
+  defp help_cmd({uid, frompid}) do
+    answers = [
+      " .weather <scope?> <city> scope can optionally be hourly or daily",
+      " .time <tz or city> tz should follow the 'Country/City' format",
+      " .remind <someone> <msg> as soon as he /join this channel",
+      " .chan will highlight everyone else in the current channel"
+    ]
     send frompid, {:answer, {uid, answers}}
   end
 
-  defp set_reminder(_parsed={cmd, user}, req={_uid,frompid}, infos={msg,from,chan}) do
-    case chan do
-      nil ->
-        answer = "I can't do that on private messages!"
-        send frompid, {:answer, {:privmsg, from, [answer]}}
+  defp set_reminder(_, {_, frompid}, {_msg, from, nil}) do
+    answer = "I can't do that on private messages!"
+    send frompid, {:answer, {:privmsg, from, [answer]}}
+  end
+
+  defp set_reminder({cmd, user}, req = {_, frompid}, infos) do
+    {msg, from, chan} = infos
+    case GenServer.call(frompid, {:has_user, chan, user}) do
+      true ->
+        answer = "#{user} is already on the channel."
+        send frompid, {:answer, {chan, from, [answer]}}
       _ ->
-        case GenServer.call(frompid, {:has_user, chan, user}) do
-          true ->
-            answer = "#{user} is already on the channel."
-            send frompid, {:answer, {chan, from, [answer]}}
-          _ ->
-            match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-            Core.PluginReminder.set_reminder(:core_plugin_reminder, _reminder = {user, match["memo"]}, req, infos)
-        end
+        match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
+        reminder = {user, match["memo"]}
+        Reminder.set(:core_plugin_reminder, reminder, req, infos)
     end
   end
 

@@ -4,8 +4,13 @@ defmodule Core.PluginTime do
   """
 
   use GenServer
+  alias Timex.Timezone, as: Timezone
 
   defmodule Credentials do
+    @moduledoc """
+    Holds the geocode `gc_id` and timezone `tz_id` tokens.
+    """
+
     defstruct gc_id: nil,
       tz_id: nil
   end
@@ -44,7 +49,11 @@ defmodule Core.PluginTime do
     tz_id = read_file("apps/core/lib/plugins/time/timezone.sec")
 
     # construct our initial state
-    new_state = %Credentials{gc_id: String.strip(gc_id), tz_id: String.strip(tz_id)}
+    new_state = %Credentials{
+      gc_id: String.strip(gc_id),
+      tz_id: String.strip(tz_id)
+    }
+
     {:ok, new_state}
   end
 
@@ -63,30 +72,34 @@ defmodule Core.PluginTime do
 
 
   # Internal functions
-  defp current_time(params, _req={uid, frompid}, state) do
+  defp current_time(params, {uid, frompid}, state) do
     tz = hd(params)
-    timezone = case Timex.Timezone.exists?(tz) do
+    timezone = case Timezone.exists?(tz) do
                  true -> tz
-                 false ->
-                   # get geocode
-                   url = "https://maps.googleapis.com/maps/api/geocode/json?address="
-                   address = Enum.join(params, "+")
-                   gc_url = url <> "#{address}&key=#{state.gc_id}"
-                   gc_json = quick_request(gc_url)
-                   coord = hd(gc_json["results"])["geometry"]["location"]
-                   {lat, lng} = {coord["lat"], coord["lng"]}
-
-                   # find the timezone for this geocode
-                   {mgs, sec, ms} = :erlang.timestamp()
-                   url = "https://maps.googleapis.com/maps/api/timezone/json?location="
-                   tz_url = url <> "#{lat},#{lng}&timestamp=#{sec}&key=#{state.tz_id}"
-                   tz_json = quick_request(tz_url)
-                   tz_json["timeZoneId"]
+                 false -> find_timezone(params, state)
                end
     city = Enum.join(params, " ")
     dt = Timex.now(timezone)
-    {:ok, current} = Timex.format(dt, "%F - %T in #{city} (#{timezone}, %:z UTC)", :strftime)
+    time_str = "%F - %T in #{city} (#{timezone}, %:z UTC)"
+    {:ok, current} = Timex.format(dt, time_str, :strftime)
     send frompid, {:answer, {uid, [current]}}
+  end
+
+  defp find_timezone(params, state) do
+    # get geocode
+    url = "https://maps.googleapis.com/maps/api/geocode/json?address="
+    address = Enum.join(params, "+")
+    gc_url = url <> "#{address}&key=#{state.gc_id}"
+    gc_json = quick_request(gc_url)
+    coord = hd(gc_json["results"])["geometry"]["location"]
+    {lat, lng} = {coord["lat"], coord["lng"]}
+
+    # find the timezone for this geocode
+    {_, sec, _} = :erlang.timestamp()
+    url = "https://maps.googleapis.com/maps/api/timezone/json?location="
+    tz_url = url <> "#{lat},#{lng}&timestamp=#{sec}&key=#{state.tz_id}"
+    tz_json = quick_request(tz_url)
+    tz_json["timeZoneId"]
   end
 
   defp read_file(file) do
@@ -100,9 +113,11 @@ defmodule Core.PluginTime do
   end
 
   defp quick_request(url) do
-    with {:ok, res} <- HTTPoison.get(url, []), %HTTPoison.Response{body: body} <- res do
-      Poison.decode!(body)
-    end
+    with {:ok, res} <-
+         HTTPoison.get(url, []),
+           %HTTPoison.Response{body: body} <- res do
+           Poison.decode!(body)
+         end
   end
 
 end

@@ -5,6 +5,10 @@ defmodule Hal.ConnectionHandler do
   """
 
   use GenServer
+  alias ExIrc.Client, as: Irc
+  alias Core.PluginBrain, as: Brain
+  alias Hal.ConnectionHandlerKeeper, as: HandlerKeeper
+  alias Hal.ConnectionHandler, as: ConnectionHandler
 
   # Client
   def start_link(args, opts \\ []) do
@@ -77,17 +81,17 @@ defmodule Hal.ConnectionHandler do
 
   # Server callbacks
   def init(state) do
-    # Create only one connection per ExIrc.Client
-    case ExIrc.Client.is_logged_on? state.client do
+    # Create only one connection per Irc
+    case Irc.is_logged_on? state.client do
       true ->
-        ExIrc.Client.add_handler state.client, self()
+        Irc.add_handler state.client, self()
         send self(), :logged_in
       _ ->
-        ExIrc.Client.add_handler state.client, self()
-        ExIrc.Client.connect! state.client, state.host, state.port
+        Irc.add_handler state.client, self()
+        Irc.connect! state.client, state.host, state.port
     end
 
-    uids = Hal.ConnectionHandlerKeeper.give_me_your_table(:hal_connection_handler_keeper)
+    uids = HandlerKeeper.give_me_your_table(:hal_connection_handler_keeper)
     new_state = %{state | uids: uids}
     {:ok, new_state}
   end
@@ -97,12 +101,12 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_call({:get_users, chan}, _frompid, state) do
-    res = {state.nick, ExIrc.Client.channel_users(state.client, chan)}
+    res = {state.nick, Irc.channel_users(state.client, chan)}
     {:reply, res, state}
   end
 
   def handle_call({:has_user, chan, user}, _frompid, state) do
-    status = ExIrc.Client.channel_has_user?(state.client, chan, user)
+    status = Irc.channel_has_user?(state.client, chan, user)
     {:reply, status, state}
   end
 
@@ -122,12 +126,12 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_info({:answer, req}, state) do
-    Hal.ConnectionHandler.answer(:hal_connection_handler, req)
+    ConnectionHandler.answer(:hal_connection_handler, req)
     {:noreply, state}
   end
 
   def handle_info({:connected, _server, _port}, state) do
-    ExIrc.Client.logon state.client, state.pass, state.nick, state.user, state.name
+    Irc.logon state.client, state.pass, state.nick, state.user, state.name
     {:noreply, state}
   end
 
@@ -140,8 +144,11 @@ defmodule Hal.ConnectionHandler do
   def handle_info(:logged_in, state) do
     IO.puts "[INFO] Logged in to the server"
     IO.puts "[INFO] Joining channels:"
-    IO.inspect state.chans
-    Enum.map(state.chans, &(ExIrc.Client.join state.client, &1))
+    Enum.each(state.chans, fn(chan) ->
+      IO.puts(chan)
+      Irc.join state.client, chan
+    end)
+
     {:noreply, state}
   end
 
@@ -149,7 +156,7 @@ defmodule Hal.ConnectionHandler do
     infos = {nil, from.nick, chan}
     uid = give_me_an_id(infos)
     true = :ets.insert(state.uids, {uid, infos})
-    Core.PluginBrain.get_reminder(:core_plugin_brain, _req={uid, self()}, _infos={nil,from.nick,chan})
+    Brain.get_reminder(:core_plugin_brain, {uid, self()}, {nil,from.nick,chan})
     {:noreply, state}
   end
 
@@ -157,17 +164,17 @@ defmodule Hal.ConnectionHandler do
     opts = {msg, from.nick, chan}
     uid = give_me_an_id(opts)
     true = :ets.insert(state.uids, {uid, opts})
-    Core.PluginBrain.parse_text(:core_plugin_brain, _req={uid, self()}, {msg,from,chan})
+    Brain.parse_text(:core_plugin_brain, {uid, self()}, {msg,from,chan})
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from}, state) do
-    generic_received(_opts={msg, from.nick, nil}, state)
+    generic_received({msg, from.nick, nil}, state)
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from, chan}, state) do
-    generic_received(_opts={msg, from.nick, chan}, state)
+    generic_received({msg, from.nick, chan}, state)
     {:noreply, state}
   end
 
@@ -186,16 +193,16 @@ defmodule Hal.ConnectionHandler do
 
 
   # Internal functions
-  defp give_me_an_id(_opts={msg, from, chan}) do
+  defp give_me_an_id({msg, from, chan}) do
     time_seed = UUID.uuid1()
     UUID.uuid5(time_seed, "#{msg}#{from}#{chan}", :hex)
   end
 
-  defp generic_received(opts={msg,_from,_chan}, state) do
+  defp generic_received(opts = {msg, _from, _chan}, state) do
     case String.at(msg, 0) do
       "." ->
         uid = generate_request(opts, state)
-        Core.PluginBrain.command(:core_plugin_brain, _req={uid, self()}, opts)
+        Brain.command(:core_plugin_brain, {uid, self()}, opts)
       _ -> nil
     end
   end
@@ -209,8 +216,8 @@ defmodule Hal.ConnectionHandler do
   defp answer(answers, chan, from, state) do
     Enum.each(answers, &(
           case chan do
-            nil -> ExIrc.Client.msg state.client, :privmsg, from, &1 # private_msg
-            _   -> ExIrc.Client.msg state.client, :privmsg, chan, &1
+            nil -> Irc.msg state.client, :privmsg, from, &1 # private_msg
+            _   -> Irc.msg state.client, :privmsg, chan, &1
           end)
     )
   end
