@@ -4,6 +4,7 @@ defmodule Core.PluginReminder do
   """
 
   use GenServer
+  alias Core.PluginReminderKeeper, as: ReminderKeeper
 
   # Client API
   def start_link(args, opts \\ []) do
@@ -29,7 +30,10 @@ defmodule Core.PluginReminder do
 
   ## Examples
   ```Elixir
-  iex> Core.PluginReminder.set(pid, {user, memo}, {uid, frompid}, {msg, from, chan})
+  reminder = {user, memo}
+  req = {uid, frompid}
+  infos = {msg, from, chan}
+  iex> Core.PluginReminder.set(pid, reminder, req, infos)
   ```
   """
   def set(pid, reminder, req, infos) do
@@ -82,25 +86,29 @@ defmodule Core.PluginReminder do
 
   # Server callbacks
   def init(_state) do
-    reminders = Core.PluginReminderKeeper.give_me_your_table(:core_plugin_reminder_keeper)
+    reminders = ReminderKeeper.give_me_your_table(:core_plugin_reminder_keeper)
     new_state = %{reminders: reminders}
     {:ok, new_state}
   end
 
-  def handle_call({:set_reminder, _to_remind={to, memo}, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
+  def handle_call({:set_reminder, reminder, req, infos}, _, state) do
+    {to, memo} = reminder
+    {uid, frompid} = req
+    {_, from, chan} = infos
     reminders = state[:reminders]
     current_time = Timex.now
     true = :ets.insert(reminders, {chan, from, to, memo, current_time})
 
     # construct and send the answer
-    {:ok, ttl} = Timex.format(shift_time(current_time), "%F - %T UTC", :strftime)
+    time_str = "%F - %T UTC"
+    {:ok, ttl} = Timex.format(shift_time(current_time), time_str, :strftime)
     answers = "Reminder for #{to} is registered and will autodestroy on #{ttl}."
     send frompid, {:answer, {uid, [answers]}}
 
     {:reply, :ok, state}
   end
 
-  def handle_call({:get_reminder, _req={uid,frompid}, _infos={_msg,from,chan}}, _frompid, state) do
+  def handle_call({:get_reminder, {uid, frompid}, {_, from, chan}}, _, state) do
     reminders = state[:reminders]
     matched = :ets.match(reminders, {chan, :'$1', from, :'$2', :'$3'})
     send_answers(matched, from, uid, frompid)
@@ -127,8 +135,8 @@ defmodule Core.PluginReminder do
     # fetch the expired memo
     current_time = Timex.now
     matched = :ets.match(reminders, {:'$1', :'$2', :'$3', :'$4', :'$5'})
-    Enum.each(matched, fn(reminder=[chan, from, to, memo, time]) ->
-      if Timex.before?(shift_time(time, unit, timeshift), current_time) == true do
+    Enum.each(matched, fn(reminder = [chan, from, to, memo, time]) ->
+      if Timex.before?(shift_time(time, unit, timeshift), current_time) do
         answer = "[EXPIRED] " <> generic_answer(from, to, memo, time)
         IO.puts(answer)
         send frompid, {:answer, {chan, to, [answer]}}

@@ -1,4 +1,8 @@
 defmodule Hal.HandlerSupervisor do
+  @moduledoc """
+  Supervise the various connection handler (IRC) with a one_for_one strategy.
+  """
+
   use Supervisor
 
   def start_link(_type, args, _opts \\ []) do

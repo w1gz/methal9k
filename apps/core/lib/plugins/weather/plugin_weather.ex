@@ -6,6 +6,10 @@ defmodule Core.PluginWeather do
   use GenServer
 
   defmodule Credentials do
+    @moduledoc """
+    Holds the token for talking to the weather API.
+    """
+
     defstruct appid: nil
   end
 
@@ -36,7 +40,8 @@ defmodule Core.PluginWeather do
 
   @doc """
   Fetch a 5-day forecast with intervals of 3 hours. Only the 4 first answers are
-  returned. Which means if you ask the weather at 12:00, you'll get the weather for:
+  returned. Which means if you ask the weather at 12:00, you'll get the weather
+  for:
   - 12:00
   - 15:00
   - 18:00
@@ -60,7 +65,8 @@ defmodule Core.PluginWeather do
 
   @doc """
   Fetch a 12-day forecast with intervals of 1 day. Only the 4 first answers are
-  returned. Which means if you ask the weather for monday the 10th, you'll get the weather for:
+  returned. Which means if you ask the weather for monday the 10th, you'll get
+  the weather for:
   - monday 10th
   - tuesday 11th
   - wednesday 12th
@@ -82,13 +88,16 @@ defmodule Core.PluginWeather do
     GenServer.cast(pid, {:forecast_daily, params, req})
   end
 
+
   # Server callbacks
   def init(_state) do
-    # TODO reduce/simplify the path to the weather token
-    token = File.read("apps/core/lib/plugins/weather/weather_token.sec")
+    filepath = "apps/core/lib/plugins/weather/weather_token.sec"
+    token = File.read(filepath)
     {appid, msg} = case token do
-                     {:ok, appid} -> {appid, "[INFO] weather token successfully read"}
-                     _ -> {"", "[WARN] weather token not found"}
+                     {:ok, appid} ->
+                       {appid, "[INFO] weather token successfully read"}
+                     _ ->
+                       {"", "[WARN] weather token not found"}
                    end
     IO.puts(msg)
 
@@ -98,19 +107,19 @@ defmodule Core.PluginWeather do
     {:ok, new_state}
   end
 
-  def handle_cast(args={:current, _params, _req}, state) do
+  def handle_cast(args = {:current, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/weather"
     get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast(args={:forecast_hourly, _params, _req}, state) do
+  def handle_cast(args = {:forecast_hourly, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/forecast"
     get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast(args={:forecast_daily, _params, _req}, state) do
+  def handle_cast(args = {:forecast_daily, _params, _req}, state) do
     url = "api.openweathermap.org/data/2.5/forecast/daily"
     get_weather(args, state.appid, url)
     {:noreply, state}
@@ -126,49 +135,26 @@ defmodule Core.PluginWeather do
 
 
   # Internal functions
-  defp get_weather({type, params, req={uid,frompid}}, appid, url) do
-    output = send_request(params, uid, frompid, appid, url)
-    answer = format_for_human(output, req, type)
-    answers = case is_list(answer) do
-                true  -> answer
-                false -> [answer]
-              end
-    send frompid, {:answer, {uid, answers}}
+  defp get_weather({type, params, req = {uid,frompid}}, appid, url) do
+    json = send_request(params, req, appid, url)
+    answer = format_for_human(json, req, type)
+    send frompid, {:answer, {uid, answer}}
   end
 
-  defp send_request(params, uid, frompid, appid, url) do
+  defp send_request(params, {uid, frompid}, appid, url) do
     # request some weather informations
     city = Enum.join(params, " ")
-    query_params = %{q: city, APPID: appid}
-    {:ok, res} = HTTPoison.get(url, [], stream_to: self(), params: query_params)
-    {:ok, output} = parse_async(res.id)
-
-    # does the request succeed?
-    code = output[:code]
-    case code do
-      200 -> output
-      _   ->
-        answer = "HTTP Request failed with #{code}"
+    query_params = %{q: city, dt: "UTC", units: "metric", APPID: appid}
+    res = HTTPoison.get!(url, [], params: query_params)
+    case res.status_code do
+      200 -> res.body
+      _ ->
+        answer = "HTTP Request failed with #{res.status_code}"
         send frompid, {:answer, {uid, [answer]}}
     end
   end
 
-  defp parse_async(id) do parse_async(id, _output = %{:code => "", :data => ""}) end
-
-  defp parse_async(id, output) do
-    receive do
-      %HTTPoison.AsyncEnd{id: ^id}                     -> {:ok, output}
-      %HTTPoison.AsyncStatus{id: ^id, code: code}      -> parse_async(id, Map.put(output, :code, code))
-      %HTTPoison.AsyncHeaders{id: ^id}                 -> parse_async(id, output)
-      %HTTPoison.AsyncChunk{id: ^id, chunk: new_chunk} ->
-        previous_data = Map.get(output, :data)
-        res_data = Map.put(output, :data, previous_data <> new_chunk)
-        parse_async(id, res_data)
-    end
-  end
-
-  defp format_for_human(output, _req={uid,frompid}, weather_type) do
-    json = output[:data]
+  defp format_for_human(json, {uid, frompid}, weather_type) do
     raw = Poison.decode!(json)
 
     # The API will either return a integer or a string
@@ -185,103 +171,102 @@ defmodule Core.PluginWeather do
       send frompid, {:answer, {uid, [answer]}}
     else
       case weather_type do
-        :current         -> format_current(raw)
-        :forecast_hourly -> format_forecast_hourly(raw)
-        :forecast_daily  -> format_forecast_daily(raw)
+        :current         -> one_pound(raw, fun_current())
+        :forecast_hourly -> format_forecast(raw, fun_hourly())
+        :forecast_daily  -> format_forecast(raw, fun_daily())
       end
     end
   end
 
-  defp format_forecast_hourly(raw) do
-    answers =
-      Enum.filter(raw["list"], fn(fday) ->
-        {:ok, hnow} = Timex.format(Timex.now, "%H", :strftime)
-        {_, {hour,_min,_sec}} = :calendar.gregorian_seconds_to_datetime(fday["dt"])
-        hnow >= hour
-      end)
-      |> Enum.map(fn(fday) ->
-      # general conditions
-      datetime = fday["dt_txt"]
-      temp = Float.round(fday["main"]["temp"] - 273.15, 1)
-      pressure = round(fday["main"]["pressure"])
-      desc = hd(fday["weather"])["description"]
-
-      # construct the answer
-      weather_for_human = [
-        "#{datetime} UTC",
-        "#{pressure} hPa, #{temp}°C",
-        "#{desc}"
-      ]
-      Enum.join(weather_for_human, " ~ ")
-    end)
-    |> Enum.take(4)
-
-      # add the header
-      name = raw["city"]["name"]
-      country = raw["city"]["country"]
-      List.insert_at(answers, 0, "#{name}, #{country}.")
+  defp one_pound(fish, fun_format) do
+    desc = hd(fish["weather"])["description"]
+    one_unit = List.insert_at(fun_format.(fish), -1, desc)
+    [Enum.join(one_unit, " ~ ")]
   end
 
-  defp format_forecast_daily(raw) do
-    answers =
-      Enum.take(raw["list"], 4)
-      |> Enum.map(fn(fday) ->
-      time = fday["dt"]
-      {{year,month,day}, {_hour,_min,_sec}} = :calendar.gregorian_seconds_to_datetime(time)
-      year = year + 1970
+  defp format_forecast(raw, {fun_forecast, fun_filter}) do
+    filtered = Enum.filter(raw["list"], fun_filter)
+    format_forecast(raw, filtered, fun_forecast)
+  end
+
+  defp format_forecast(raw, filtered, fun_forecast) do
+    # format our weather
+    answers = filtered
+    |> Enum.take(4)
+    |> Enum.map(fn(fish) -> one_pound(fish, fun_forecast) end)
+
+    # add the forecast header
+    name = raw["city"]["name"]
+    country = raw["city"]["country"]
+    header = "#{name}, #{country}."
+    List.insert_at(answers, 0, header)
+  end
+
+  defp fun_hourly do
+    filter = fn(fcst) ->
+      {:ok, hnow} = Timex.format(Timex.now, "%H", :strftime)
+      {_, {hour,_,_}} = :calendar.gregorian_seconds_to_datetime(fcst["dt"])
+      hnow >= hour
+    end
+
+    hourly = fn(fcst) ->
+      # general conditions
+      datetime = fcst["dt_txt"]
+      temp = round(fcst["main"]["temp"])
+      pressure = round(fcst["main"]["pressure"])
+
+      # construct the answer
+      ["#{datetime} UTC", "#{pressure} hPa, #{temp}°C"]
+    end
+
+    {hourly, filter}
+  end
+
+  defp fun_daily do
+    daily = fn(fcst) ->
+      time = fcst["dt"]
+      {{year, month, day}, _} = :calendar.gregorian_seconds_to_datetime(time)
 
       # temps of the day
-      tmorn = Float.round(fday["temp"]["morn"] - 273.15, 1)
-      teve = Float.round(fday["temp"]["eve"] - 273.15, 1)
-      tnight = Float.round(fday["temp"]["night"] - 273.15, 1)
+      tmorn = round(fcst["temp"]["morn"])
+      teve = round(fcst["temp"]["eve"])
+      tnight = round(fcst["temp"]["night"])
 
       # general conditions
-      pressure = round(fday["pressure"])
-      desc = hd(fday["weather"])["description"]
+      pressure = round(fcst["pressure"])
 
       # construct the answer
-      weather_for_human = [
-        "#{year}-#{month}-#{day}",
+      [
+        "#{year+1970}-#{month}-#{day}",
         "#{pressure} hPa",
-        "M:#{tmorn}C  E:#{teve}C  N:#{tnight}C",
-        "#{desc}"
+        "#{tmorn}°C #{teve}°C #{tnight}°C",
       ]
-      Enum.join(weather_for_human, " ~ ")
-    end)
+    end
 
-      # add the header
-      name = raw["city"]["name"]
-      country = raw["city"]["country"]
-      List.insert_at(answers, 0, "#{name}, #{country}. Temps are for Morning, Evening and Night")
+    filter = fn(_) -> true end
+    {daily, filter}
   end
 
-  defp format_current(raw) do
-    # 'basic' weather & name
-    name = raw["name"]
-    desc = hd(raw["weather"])["description"]
+  defp fun_current do
+    fn(raw) ->
+      # 'basic' weather & name
+      name = raw["name"]
 
-    # 'sys' complementary infos
-    country = raw["sys"]["country"]
-    sunrise = raw["sys"]["sunrise"]
-    sunset  = raw["sys"]["sunset"]
-    # convert to a more readable format
-    {_date, {rhour,rmin,_sec}} = :calendar.gregorian_seconds_to_datetime(sunrise)
-    {_date, {shour,smin,_sec}} = :calendar.gregorian_seconds_to_datetime(sunset)
-    sunrise = "#{rhour}h#{rmin}"
-    sunset = "#{shour}h#{smin}"
+      # 'sys' complementary infos
+      country = raw["sys"]["country"]
 
-    # 'main' informations
-    humidity = raw["main"]["humidity"]
-    pressure = round(raw["main"]["pressure"])
-    temp     = Float.round((raw["main"]["temp"] - 273.15), 1) # from Kelvin to Celcius
+      # 'main' informations
+      humidity = raw["main"]["humidity"]
+      cloud = raw["clouds"]["all"]
+      pressure = round(raw["main"]["pressure"])
+      temp = round(raw["main"]["temp"])
 
-    # write down our parsed answer
-    weather_for_human = [
-      "#{name}, #{country}",
-      "#{desc}, #{temp}°C #{humidity}% Humidity  #{pressure} hPa",
-      "The sun rises at #{sunrise} UTC and sets at #{sunset} UTC"
-    ]
-    Enum.join(weather_for_human, " ~ ")
+      # construct the answer
+      [
+        "#{name}, #{country}" ,
+        "#{humidity}% Humidity #{cloud}% cloudiness #{pressure} hPa #{temp}°C"
+      ]
+    end
   end
 
 end

@@ -1,4 +1,8 @@
 defmodule Core.PluginReminderSupervisor do
+  @moduledoc """
+  Supervise the reminder plugin using a one_for_one strategy.
+  """
+
   use Supervisor
 
   def start_link(type, args, _opts \\ []) do
@@ -9,9 +13,9 @@ defmodule Core.PluginReminderSupervisor do
   def init(args) do
     children = [
       worker(Core.PluginReminderKeeper,
-             [args, [restart: :permanent, name: :core_plugin_reminder_keeper]]),
+        [args, [restart: :permanent, name: :core_plugin_reminder_keeper]]),
       worker(Core.PluginReminder,
-             [args, [restart: :permanent, name: :core_plugin_reminder]])
+        [args, [restart: :permanent, name: :core_plugin_reminder]])
     ]
 
     supervise(children, strategy: :one_for_one)
