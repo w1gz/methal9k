@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:16.10
 
 ## Set some sane ENV value (e.g. for Elixir's UTF8 string)
 ENV DEBIAN_FRONTEND noninteractive
@@ -33,7 +33,7 @@ ENV HOME /home/devel
 WORKDIR $HOME
 
 ## Build Elixir
-RUN git clone https://github.com/elixir-lang/elixir $HOME/elixir
+RUN git clone --branch v1.4 https://github.com/elixir-lang/elixir $HOME/elixir
 RUN cd $HOME/elixir &&\
     make -j3 &&\
     sudo make install &&\

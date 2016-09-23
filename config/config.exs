@@ -15,4 +15,4 @@ import_config "../apps/*/config/config.exs"
 #       level: :info,
 #       format: "$date $time [$level] $metadata$message\n",
 #       metadata: [:user_id]
-config :excheck, :number_iterations, 200
+# config :excheck, :number_iterations, 200

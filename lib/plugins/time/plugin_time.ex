@@ -1,10 +1,11 @@
-defmodule Core.PluginTime do
+defmodule Hal.PluginTime do
   @moduledoc """
   Provide Time capability, including timezone
   """
 
   use GenServer
   alias Timex.Timezone, as: Timezone
+  alias Hal.Tool, as: Tool
 
   defmodule Credentials do
     @moduledoc """
@@ -16,9 +17,8 @@ defmodule Core.PluginTime do
   end
 
   # Client API
-  def start_link(args, opts \\ []) do
-    IO.puts("[INFO] New PluginTime")
-    GenServer.start_link(__MODULE__, args, opts)
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, [], opts)
   end
 
   @doc """
@@ -30,12 +30,6 @@ defmodule Core.PluginTime do
 
   `uid` is the unique identifier for this request. Whereas `frompid` is the
   process for which the answer will be sent.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginTime.current(pid, ["las", "vegas"], {uid, frompid})
-  iex> Core.PluginTime.current(pid, ["America/Chicago"], {uid, frompid})
-  ```
   """
   def current(pid, params, req) do
     GenServer.cast(pid, {:current_time, params, req})
@@ -44,17 +38,18 @@ defmodule Core.PluginTime do
 
   # Server callbacks
   def init(_state) do
+    IO.puts("[NEW] PluginTime #{inspect self()}")
     # read tokens
-    gc_id = read_file("apps/core/lib/plugins/time/geocode.sec")
-    tz_id = read_file("apps/core/lib/plugins/time/timezone.sec")
+    gc_id = read_file("lib/plugins/time/geo.sec")
+    tz_id = read_file("lib/plugins/time/tz.sec")
 
     # construct our initial state
-    new_state = %Credentials{
-      gc_id: String.strip(gc_id),
-      tz_id: String.strip(tz_id)
+    state = %Credentials{
+      gc_id: String.trim(gc_id),
+      tz_id: String.trim(tz_id)
     }
 
-    {:ok, new_state}
+    {:ok, state}
   end
 
   def handle_cast({:current_time, params, req}, state) do
@@ -63,6 +58,7 @@ defmodule Core.PluginTime do
   end
 
   def terminate(reason, _state) do
+    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -73,16 +69,21 @@ defmodule Core.PluginTime do
 
   # Internal functions
   defp current_time(params, {uid, frompid}, state) do
-    tz = hd(params)
-    timezone = case Timezone.exists?(tz) do
-                 true -> tz
-                 false -> find_timezone(params, state)
+    time_res = case params do
+                 [] -> "Missing arguments"
+                 _ ->
+                   tz = hd(params)
+                   timezone = case Timezone.exists?(tz) do
+                                true -> tz
+                                false -> find_timezone(params, state)
+                              end
+                   city = Enum.join(params, " ")
+                   dt = Timex.now(timezone)
+                   time_str = "%F - %T in #{city} (#{timezone}, %:z UTC)"
+                   {:ok, current} = Timex.format(dt, time_str, :strftime)
+                   current
                end
-    city = Enum.join(params, " ")
-    dt = Timex.now(timezone)
-    time_str = "%F - %T in #{city} (#{timezone}, %:z UTC)"
-    {:ok, current} = Timex.format(dt, time_str, :strftime)
-    send frompid, {:answer, {uid, [current]}}
+    Tool.terminate(self(), frompid, uid, time_res)
   end
 
   defp find_timezone(params, state) do
@@ -113,11 +114,10 @@ defmodule Core.PluginTime do
   end
 
   defp quick_request(url) do
-    with {:ok, res} <-
-         HTTPoison.get(url, []),
-           %HTTPoison.Response{body: body} <- res do
-           Poison.decode!(body)
-         end
+    with {:ok, res} <- HTTPoison.get(url, []),
+         %HTTPoison.Response{body: body} <- res do
+      Poison.decode!(body)
+    end
   end
 
 end

@@ -1,14 +1,13 @@
-defmodule Core.PluginReminder do
+defmodule Hal.PluginReminder do
   @moduledoc """
   Leave messages/reminder for a disconnected contact
   """
 
   use GenServer
-  alias Core.PluginReminderKeeper, as: ReminderKeeper
+  alias Hal.Keeper, as: Keeper
 
   # Client API
   def start_link(args, opts \\ []) do
-    IO.puts("[INFO] New PluginReminder")
     GenServer.start_link(__MODULE__, args, opts)
   end
 
@@ -21,41 +20,28 @@ defmodule Core.PluginReminder do
 
   `pid` the pid of the GenServer that will be called.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
 
-  `msg` initial and complete message (include the command).
-  `from` the person who initiated the reminder.
-  `chan` the channel on which this happened.
-
-  ## Examples
-  ```Elixir
-  reminder = {user, memo}
-  req = {uid, frompid}
-  infos = {msg, from, chan}
-  iex> Core.PluginReminder.set(pid, reminder, req, infos)
-  ```
+  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
+  (include the command).  `from` the person who initiated the reminder.  `chan`
+  the channel on which this happened.
   """
   def set(pid, reminder, req, infos) do
     GenServer.call(pid, {:set_reminder, reminder, req, infos})
   end
 
-  @doc"""
+  @doc """
   Retrieve a reminder for a specific person in the appropriate channel.
 
   `pid` the pid of the GenServer that will be called.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
 
-  `msg` initial and complete message (include the command).
-  `from` the person who initiated the reminder.
-  `chan` the channel on which this happened.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginReminder.get(pid, {uid, frompid}, {msg, from, chan})
-  ```
+  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
+  (include the command).  `from` the person who initiated the reminder.  `chan`
+  the channel on which this happened.
   """
   def get(pid, req, infos) do
     GenServer.call(pid, {:get_reminder, req, infos})
@@ -74,21 +60,24 @@ defmodule Core.PluginReminder do
   - :minutes
   - :hours
   - :days
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginReminder.purge_expired(pid, timeshift, unit)
-  ```
   """
   def purge_expired(pid, timeshift, unit) do
-    GenServer.cast(pid, {:purge_expired, timeshift, unit})
+    GenServer.call(pid, {:purge_expired, timeshift, unit})
   end
 
+
   # Server callbacks
-  def init(_state) do
-    reminders = ReminderKeeper.give_me_your_table(:core_plugin_reminder_keeper)
-    new_state = %{reminders: reminders}
-    {:ok, new_state}
+  def init(_args) do
+    IO.puts("[NEW] PluginReminder #{inspect self()}")
+    reminders = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
+                  true -> nil   # we will receive this by ETS-TRANSFER later on
+                  _ -> hal_pid = Process.whereis(:hal_keeper)
+                  :ets.new(:reminders, [:duplicate_bag,
+                                        :private,
+                                        {:heir, hal_pid, __MODULE__}])
+                end
+    state = %{reminders: reminders}
+    {:ok, state}
   end
 
   def handle_call({:set_reminder, reminder, req, infos}, _, state) do
@@ -102,9 +91,8 @@ defmodule Core.PluginReminder do
     # construct and send the answer
     time_str = "%F - %T UTC"
     {:ok, ttl} = Timex.format(shift_time(current_time), time_str, :strftime)
-    answers = "Reminder for #{to} is registered and will autodestroy on #{ttl}."
-    send frompid, {:answer, {uid, [answers]}}
-
+    answer = "Reminder for #{to} is registered and will autodestroy on #{ttl}."
+    send frompid, {:answer, {uid, [answer]}}
     {:reply, :ok, state}
   end
 
@@ -121,7 +109,14 @@ defmodule Core.PluginReminder do
     {:reply, :ok, state}
   end
 
+  def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
+    IO.puts("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
+    state = %{state | reminders: table_id}
+    {:noreply, state}
+  end
+
   def terminate(reason, _state) do
+    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -131,7 +126,7 @@ defmodule Core.PluginReminder do
 
 
   # Internal functions
-  defp purge_expired_reminders(reminders, unit, timeshift, frompid) do
+  defp purge_expired_reminders(reminders, timeshift, unit, frompid) do
     # fetch the expired memo
     current_time = Timex.now
     matched = :ets.match(reminders, {:'$1', :'$2', :'$3', :'$4', :'$5'})

@@ -1,18 +1,18 @@
-defmodule Hal.ConnectionHandler do
+defmodule Hal.IrcHandler do
   @moduledoc """
   The module will maintain a link to the ExIrc library in order to intercept and
   send message to IRC.
   """
 
   use GenServer
-  alias ExIrc.Client, as: Irc
-  alias Core.PluginBrain, as: Brain
-  alias Hal.ConnectionHandlerKeeper, as: HandlerKeeper
-  alias Hal.ConnectionHandler, as: ConnectionHandler
+  alias ExIrc.Client, as: IrcClient
+  alias Hal.PluginBrain, as: Brain
+  alias Hal.IrcHandler, as: IrcHandler
+  alias Hal.Shepherd, as: Herd
+  alias Hal.Keeper, as: Keeper
 
   # Client
   def start_link(args, opts \\ []) do
-    IO.puts "[INFO] New ConnectionHandler"
     GenServer.start_link(__MODULE__, args, opts)
   end
 
@@ -21,11 +21,6 @@ defmodule Hal.ConnectionHandler do
   directly to the ExIrc process.
 
   `pid` the pid of the GenServer that will be called.
-
-  ##Example
-  ```Elixir
-  iex> Hal.ConnectionHandler.get_state(pid)
-  ```
   """
   def get_state(pid) do
     GenServer.call(pid, {:get_state})
@@ -37,10 +32,6 @@ defmodule Hal.ConnectionHandler do
   `pid` the pid of the GenServer that will be called.
 
   `chan` the IRC channel in which you want to retrieve the list of users.
-
-  ##Example
-  ```Elixir
-  iex> Hal.ConnectionHandler.get_users(pid, "#awesome-chan")
   """
   def get_users(pid, chan) do
     GenServer.call(pid, {:get_users, chan})
@@ -51,11 +42,9 @@ defmodule Hal.ConnectionHandler do
 
   `pid` the pid of the GenServer that will be called.
 
-  `answer` the IRC channel in which you want to retrieve a list of users.
+  `uid` of the job asking for these answers
 
-  ##Example
-  ```Elixir
-  iex> Hal.ConnectionHandler.answer(pid, ["i'm", "a", "answer"])
+  `answer` the IRC channel in which you want to retrieve a list of users.
   """
   def answer(pid, answers) do
     GenServer.cast(pid, {:answer, answers})
@@ -69,31 +58,32 @@ defmodule Hal.ConnectionHandler do
   `user` that you want to check the presence.
 
   `chan` channel in which to look for the `user`.
-
-  ##Example
-  ```Elixir
-  iex> Hal.ConnectionHandler.has_user(pid, "#awsome-chan", "john")
   """
   def has_user(pid, chan, user) do
     GenServer.call(pid, {:has_user, chan, user})
   end
 
-
   # Server callbacks
-  def init(state) do
-    # Create only one connection per Irc
-    case Irc.is_logged_on? state.client do
+  def init(args) do
+    IO.puts "[NEW] IrcHandler #{inspect self()}"
+    case IrcClient.is_logged_on? args.client do
       true ->
-        Irc.add_handler state.client, self()
+        IrcClient.add_handler args.client, self()
         send self(), :logged_in
       _ ->
-        Irc.add_handler state.client, self()
-        Irc.connect! state.client, state.host, state.port
+        IrcClient.add_handler args.client, self()
+        IrcClient.connect! args.client, args.host, args.port
     end
 
-    uids = HandlerKeeper.give_me_your_table(:hal_connection_handler_keeper)
-    new_state = %{state | uids: uids}
-    {:ok, new_state}
+    uids = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
+             true -> nil # we will receive this by ETS-TRANSFER later on
+             _ -> hal_pid = Process.whereis(:hal_keeper)
+             :ets.new(:irc_handler_ets, [:set,
+                                         :private,
+                                         {:heir, hal_pid, __MODULE__}])
+           end
+    state = %{args | uids: uids}
+    {:ok, state}
   end
 
   def handle_call({:get_state}, _frompid, state) do
@@ -101,12 +91,12 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_call({:get_users, chan}, _frompid, state) do
-    res = {state.nick, Irc.channel_users(state.client, chan)}
+    res = {state.nick, IrcClient.channel_users(state.client, chan)}
     {:reply, res, state}
   end
 
   def handle_call({:has_user, chan, user}, _frompid, state) do
-    status = Irc.channel_has_user?(state.client, chan, user)
+    status = IrcClient.channel_has_user?(state.client, chan, user)
     {:reply, status, state}
   end
 
@@ -126,27 +116,27 @@ defmodule Hal.ConnectionHandler do
   end
 
   def handle_info({:answer, req}, state) do
-    ConnectionHandler.answer(:hal_connection_handler, req)
+    IrcHandler.answer(self(), req)
     {:noreply, state}
   end
 
-  def handle_info({:connected, _server, _port}, state) do
-    Irc.logon state.client, state.pass, state.nick, state.user, state.name
+  def handle_info({:connected, server, port}, state) do
+    IO.puts("[INFO] connecting to #{server}:#{port}")
+    IrcClient.logon state.client, state.pass, state.nick, state.user, state.name
     {:noreply, state}
   end
 
   def handle_info(:disconnected, state) do
-    throw("[ERR] Disconnected from #{state.server}")
+    throw("[ERR] Disconnected from #{state.host}")
     {:noreply, state}
   end
 
   # ExIrc.client.quit state.client, "I live, I die. I LIVE AGAIN!"
   def handle_info(:logged_in, state) do
-    IO.puts "[INFO] Logged in to the server"
-    IO.puts "[INFO] Joining channels:"
+    IO.puts "[INFO] joining channels:"
     Enum.each(state.chans, fn(chan) ->
       IO.puts(chan)
-      Irc.join state.client, chan
+      IrcClient.join state.client, chan
     end)
 
     {:noreply, state}
@@ -156,15 +146,19 @@ defmodule Hal.ConnectionHandler do
     infos = {nil, from.nick, chan}
     uid = give_me_an_id(infos)
     true = :ets.insert(state.uids, {uid, infos})
-    Brain.get_reminder(:core_plugin_brain, {uid, self()}, {nil,from.nick,chan})
+    # TODO convert {set|get}_reminder to handle_cast?
+    [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
+    Brain.get_reminder(brain_pid, {uid, self()}, {nil,from.nick,chan})
     {:noreply, state}
   end
 
-  def handle_info({:mentioned, msg, from, chan}, state) do
-    opts = {msg, from.nick, chan}
-    uid = give_me_an_id(opts)
-    true = :ets.insert(state.uids, {uid, opts})
-    Brain.parse_text(:core_plugin_brain, {uid, self()}, {msg,from,chan})
+  def handle_info({:mentioned, _msg, _from, _chan}, state) do
+    # TODO do something about this mention
+    # opts = {msg, from.nick, chan}
+    # uid = give_me_an_id(opts)
+    # true = :ets.insert(state.uids, {uid, opts})
+    # [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
+    # Brain.parse_text(brain_pid, {uid, self()}, {msg,from,chan})
     {:noreply, state}
   end
 
@@ -178,12 +172,19 @@ defmodule Hal.ConnectionHandler do
     {:noreply, state}
   end
 
+  def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
+    IO.puts("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
+    state = %{state | uids: table_id}
+    {:noreply, state}
+  end
+
   def handle_info(_msg, state) do
     # IO.inspect(msg)
     {:noreply, state}
   end
 
   def terminate(reason, _state) do
+    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -202,7 +203,8 @@ defmodule Hal.ConnectionHandler do
     case String.at(msg, 0) do
       "." ->
         uid = generate_request(opts, state)
-        Brain.command(:core_plugin_brain, {uid, self()}, opts)
+        [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
+        Brain.command(brain_pid, {uid, self()}, opts)
       _ -> nil
     end
   end
@@ -216,8 +218,8 @@ defmodule Hal.ConnectionHandler do
   defp answer(answers, chan, from, state) do
     Enum.each(answers, &(
           case chan do
-            nil -> Irc.msg state.client, :privmsg, from, &1 # private_msg
-            _   -> Irc.msg state.client, :privmsg, chan, &1
+            nil -> IrcClient.msg state.client, :privmsg, from, &1 # private_msg
+            _   -> IrcClient.msg state.client, :privmsg, chan, &1
           end)
     )
   end
