@@ -1,9 +1,10 @@
-defmodule Core.PluginWeather do
+defmodule Hal.PluginWeather do
   @moduledoc """
   Provide facility for weather and forecast informations.
   """
 
   use GenServer
+  alias Hal.Tool, as: Tool
 
   defmodule Credentials do
     @moduledoc """
@@ -14,9 +15,8 @@ defmodule Core.PluginWeather do
   end
 
   # Client API
-  def start_link(args, opts \\ []) do
-    IO.puts("[INFO] New PluginWeather")
-    GenServer.start_link(__MODULE__, args, opts)
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, [], opts)
   end
 
   @doc """
@@ -26,13 +26,8 @@ defmodule Core.PluginWeather do
 
   `params` list of string containing the location.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginWeather.current(pid, ["chicago"], {uid, frompid})
-  ```
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
   """
   def current(pid, params, req) do
     GenServer.cast(pid, {:current, params, req})
@@ -51,13 +46,8 @@ defmodule Core.PluginWeather do
 
   `params` list of string containing the location.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginWeather.hourly(pid, ["chicago"], {uid, frompid})
-  ```
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
   """
   def hourly(pid, params, req) do
     GenServer.cast(pid, {:forecast_hourly, params, req})
@@ -76,13 +66,8 @@ defmodule Core.PluginWeather do
 
   `params` list of string containing the location.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginWeather.daily(pid, ["chicago"], {uid, frompid})
-  ```
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
   """
   def daily(pid, params, req) do
     GenServer.cast(pid, {:forecast_daily, params, req})
@@ -91,7 +76,8 @@ defmodule Core.PluginWeather do
 
   # Server callbacks
   def init(_state) do
-    filepath = "apps/core/lib/plugins/weather/weather_token.sec"
+    IO.puts("[NEW] PluginWeather #{inspect self()}")
+    filepath = "lib/plugins/weather/weather_token.sec"
     token = File.read(filepath)
     {appid, msg} = case token do
                      {:ok, appid} ->
@@ -102,9 +88,9 @@ defmodule Core.PluginWeather do
     IO.puts(msg)
 
     # construct our initial state
-    appid = String.strip(appid)
-    new_state = %Credentials{appid: appid}
-    {:ok, new_state}
+    appid = String.trim(appid)
+    state = %Credentials{appid: appid}
+    {:ok, state}
   end
 
   def handle_cast(args = {:current, _params, _req}, state) do
@@ -126,6 +112,7 @@ defmodule Core.PluginWeather do
   end
 
   def terminate(reason, _state) do
+    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -138,7 +125,7 @@ defmodule Core.PluginWeather do
   defp get_weather({type, params, req = {uid,frompid}}, appid, url) do
     json = send_request(params, req, appid, url)
     answer = format_for_human(json, req, type)
-    send frompid, {:answer, {uid, answer}}
+    Tool.terminate(self(), frompid, uid, answer)
   end
 
   defp send_request(params, {uid, frompid}, appid, url) do

@@ -1,81 +1,49 @@
-defmodule Core.PluginBrain do
+defmodule Hal.PluginBrain do
   @moduledoc """
   The brain plugin tries to dispatch the various requests to their appropriate
   process.
   """
 
   use GenServer
-  alias Core.PluginReminder, as: Reminder
-  alias Core.PluginWeather, as: Weather
-  alias Core.PluginTime, as: Time
+  alias Hal.PluginReminder, as: Reminder
+  alias Hal.PluginWeather, as: Weather
+  alias Hal.PluginTime, as: Time
+  alias Hal.Shepherd, as: Herd
+  alias Hal.Tool, as: Tool
 
   # Client API
-  def start_link(args, opts \\ []) do
-    IO.puts("[INFO] New PluginBrain")
-    GenServer.start_link(__MODULE__, args, opts)
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, [], opts)
   end
 
   @doc """
-  Find the appropriate plugin or process to call depending on the task to do
-  (generally determined by the `msg` argument).
+  Find the appropriate process to call (generally determined by parsing the
+  `msg` argument).
 
   `pid` the pid of the GenServer that will be called.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
 
-  `msg` initial and complete message (include the command).
-  `from` the person who initiated the reminder.
-  `chan` the channel on which this happened.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginBrain.command(pid, {uid, frompid}), {msg, from, chan}}
-  ```
+  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
+  (include the command).  `from` the person who initiated the reminder.  `chan`
+  the channel on which this happened.
   """
   def command(pid, req, infos) do
     GenServer.cast(pid, {:command, req, infos})
   end
 
   @doc """
-  Parse the `msg` string and try to make sense of it (Natural Language
-  Processing).
-
-  `pid` the pid of the GenServer that will be called.
-
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
-
-  `msg` initial and complete message (include the command).
-  `from` the person who initiated the reminder.
-  `chan` the channel on which this happened.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginBrain.parse_text(pid, {uid, frompid}), {msg, from, chan})
-  ```
-  """
-  def parse_text(pid, req, infos) do
-    GenServer.cast(pid, {:parse_text, req, infos})
-  end
-
-
-  @doc """
   Forward the call the plugin in charge of retrieving the reminders.
 
   `pid` the pid of the GenServer that will be called.
 
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
+  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
+  request. Whereas `frompid` is the process for which the answer will be sent.
 
-  `msg` initial and complete message (include the command).
-  `from` the person who initiated the reminder.
-  `chan` the channel on which this happened.
-
-  ## Examples
-  ```Elixir
-  iex> Core.PluginBrain.get_reminder(pid, {uid, frompid}), {msg, from, chan})
-  ```
+  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
+  (include the command).  `from` the person who initiated the reminder.  `chan`
+  the channel on which this happened.
   """
   def get_reminder(pid, req, infos) do
     GenServer.cast(pid, {:get_reminder, req, infos})
@@ -83,17 +51,13 @@ defmodule Core.PluginBrain do
 
 
   # Server callbacks
-  def init(state) do
-    {:ok, state}
+  def init(args) do
+    IO.puts("[NEW] PluginBrain #{inspect self()}")
+    {:ok, args}
   end
 
   def handle_cast({:command, req, infos}, state) do
     check_out_the_big_brain_on_brett(req, infos)
-    {:noreply, state}
-  end
-
-  def handle_cast({:parse_text, req, infos}, state) do
-    double_rainbow(req, infos)
     {:noreply, state}
   end
 
@@ -103,6 +67,7 @@ defmodule Core.PluginBrain do
   end
 
   def terminate(reason, _state) do
+    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -128,14 +93,9 @@ defmodule Core.PluginBrain do
     end
   end
 
-  # double_rainbow all the way, what does it even mean?
-  defp double_rainbow(req, infos) do
-    # TODO parse with a nlp framework (nltk?)
-    {req, infos}
-  end
-
   defp time(params, req) do
-    Time.current(:core_plugin_time, params, req)
+    [time_pid] = Herd.launch(:hal_shepherd, [Time], __MODULE__, self())
+    Time.current(time_pid, params, req)
   end
 
   defp emojis({uid, frompid}, emoji) do
@@ -145,7 +105,7 @@ defmodule Core.PluginBrain do
                :disapprove -> "ಠ_ಠ"
                :dealwithit -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
              end
-    send frompid, {:answer, {uid, [answer]}}
+    Tool.terminate(self(), frompid, uid, answer)
   end
 
   defp highlight_channel({uid, frompid}, {_msg, from, chan}) do
@@ -153,7 +113,7 @@ defmodule Core.PluginBrain do
                 nil -> ["This is not a channel"]
                 _   -> retrieve_users(frompid, from, chan)
               end
-    send frompid, {:answer, {uid, answers}}
+    Tool.terminate(self(), frompid, uid, answers)
   end
 
   defp retrieve_users(frompid, from, chan) do
@@ -170,16 +130,23 @@ defmodule Core.PluginBrain do
   end
 
   defp get_reminder(req, infos) do
-    Reminder.get(:core_plugin_reminder, req, infos)
+    Reminder.get(:hal_plugin_reminder, req, infos)
+    Herd.stop(:hal_shepherd, [self()])
   end
 
   defp weather(params, req = {uid, frompid}) do
     case params do
-      [] -> send frompid, {:answer, {uid, ["Missing arguments"]}}
-      ["hourly" | arg2] -> Weather.hourly(:core_plugin_weather, arg2, req)
-      ["daily" | arg2]  -> Weather.daily(:core_plugin_weather, arg2, req)
-      [_city | _]       -> Weather.current(:core_plugin_weather, params, req)
-      _ -> send frompid, {:answer, {uid, ["Nope"]}}
+      [] -> Tool.terminate(self(), frompid, uid, "Missing arguments")
+      ["hourly" | arg2] ->
+        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
+        Weather.hourly(weather_id, arg2, req)
+      ["daily" | arg2] ->
+        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
+        Weather.daily(weather_id, arg2, req)
+      [_city | _] ->
+        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
+        Weather.current(weather_id, params, req)
+      _ -> Tool.terminate(self(), frompid, uid, "Nope")
     end
   end
 
@@ -190,12 +157,12 @@ defmodule Core.PluginBrain do
       " .remind <someone> <msg> as soon as he /join this channel",
       " .chan will highlight everyone else in the current channel"
     ]
-    send frompid, {:answer, {uid, answers}}
+    Tool.terminate(self(), frompid, uid, answers)
   end
 
   defp set_reminder(_, {_, frompid}, {_msg, from, nil}) do
     answer = "I can't do that on private messages!"
-    send frompid, {:answer, {:privmsg, from, [answer]}}
+    Tool.terminate(self(), frompid, :privmsg, from, answer)
   end
 
   defp set_reminder({cmd, user}, req = {_, frompid}, infos) do
@@ -203,11 +170,11 @@ defmodule Core.PluginBrain do
     case GenServer.call(frompid, {:has_user, chan, user}) do
       true ->
         answer = "#{user} is already on the channel."
-        send frompid, {:answer, {chan, from, [answer]}}
+        Tool.terminate(self(), frompid, :privmsg, from, answer)
       _ ->
         match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
         reminder = {user, match["memo"]}
-        Reminder.set(:core_plugin_reminder, reminder, req, infos)
+        Reminder.set(:hal_plugin_reminder, reminder, req, infos)
     end
   end
 

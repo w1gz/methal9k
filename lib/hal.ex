@@ -31,7 +31,7 @@ defmodule Hal do
       uids: nil
   end
 
-  def start(type, [credentials]) do
+  def start(_type, [credentials]) do
     import Supervisor.Spec, warn: false
 
     # parse connection/server infos
@@ -58,10 +58,12 @@ defmodule Hal do
     {:ok, client} = ExIrc.start_client!
     args = %State{client: client} |> Map.merge(conf)
     children = [
-      supervisor(Hal.HandlerSupervisor, [type, args], restart: :permanent)
+      worker(Hal.Keeper, [[], [name: :hal_keeper]]),
+      worker(Hal.Shepherd, [[], [name: :hal_shepherd]]),
+      supervisor(Hal.IrcSupervisor, [args, [name: :hal_irc_supervisor]]),
+      supervisor(Hal.PluginSupervisor, [args, [name: :hal_plugin_supervisor]])
     ]
-    opts = [strategy: :one_for_one, name: :hal_supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(children, strategy: :one_for_one)
   end
 
   defp format_internal_state(match) do

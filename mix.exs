@@ -2,19 +2,46 @@ defmodule Methal9k.Mixfile do
   use Mix.Project
 
   def project do
-    [apps_path: "apps",
+    [app: :hal,
+     version: "0.10.0",
+     elixir: "~> 1.4",
+     description: description(),
+     package: package(),
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps()]
   end
 
+  def application do
+    [extra_applications: [:logger], mod: {Hal, ["credz.sec"]}]
+  end
+
   defp deps do
     [
-      {:ex_doc, "~> 0.13.0"},
-      {:credo, "~> 0.4.11", only: [:dev, :test]},
-      {:dogma, "~> 0.1.7"},
-      {:excheck, "~> 0.5.0", only: :test},
-      {:triq, github: "krestenkrab/triq", only: :test},
+      {:ex_doc, "~> 0.14.5"},
+      {:exirc, "~> 1.0.0"},
+      {:httpoison, "~> 0.10.0"},
+      {:poison, "~> 3.0.0"},
+      {:uuid, "~> 1.1.5"},
+      {:timex, "3.1.5"},
+      {:excoveralls, "~> 0.5.7"},
+      {:dogma, "~> 0.1.13"},
+      {:credo, "~> 0.5.3", only: [:dev, :test]}
+    ]
+  end
+
+  defp description do
+    """
+    Hal, a simple IRC bot
+    """
+  end
+
+  defp package do
+    [
+      files: ["lib", "test", "config", "mix.exs"],
+      maintainers: ["w1gz"],
+      licenses: ["GPLv3"],
+      links: %{"GitHub": "https://github.com/w1gz/methal9k"}
     ]
   end
 end
