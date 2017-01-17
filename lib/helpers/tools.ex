@@ -31,7 +31,11 @@ defmodule Hal.Tool do
   """
   def terminate(pid, dest, uid, answer) do
     {pids, answers} = {convert_to_list(pid), convert_to_list(answer)}
-    send dest, {:answer, {uid, answers}}
+    case answers do
+      [nil] -> nil
+      _ -> send dest, {:answer, {uid, answers}}
+    end
+
     Herd.stop(:hal_shepherd, pids)
   end
 

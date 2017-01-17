@@ -175,6 +175,7 @@ defmodule Hal.PluginBrain do
         match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
         reminder = {user, match["memo"]}
         Reminder.set(:hal_plugin_reminder, reminder, req, infos)
+        Tool.terminate(self(), frompid, :privmsg, from, nil)
     end
   end
 
