@@ -4,7 +4,6 @@ deps/
 doc/
 venv/
 
-*.lock
 *.sec
 *.beam
 

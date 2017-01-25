@@ -43,21 +43,21 @@ defmodule Hal do
               [yaml] -> import_conf(yaml["servers"])
             end
 
-    global = [
+    # launch Mnesia
+    :mnesia.create_schema([node()])
+    :mnesia.start()
+
+    global_workers = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
       worker(Hal.Shepherd, [[], [name: :hal_shepherd]]),
     ]
 
-    plugins_and_handlers = Enum.map(confs, fn(args) ->
-      [
-        supervisor(Hal.PluginSupervisor, [args, []]),
-        supervisor(Hal.IrcSupervisor, [args, []])
-      ]
-    end)
+    # TODO accept multiple servers instead of the first one
+    handlers = Enum.map(confs, fn(args) -> [
+      supervisor(Hal.IrcSupervisor, [args, []])
+    ] end)
 
-    # TODO accept multiple servers instead of the first one. This will be
-    # implemented after we transition to Mnesia
-    children = global ++ hd(plugins_and_handlers)
+    children = global_workers ++ hd(handlers) # TODO remove hd
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 

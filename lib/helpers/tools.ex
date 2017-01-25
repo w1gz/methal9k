@@ -59,4 +59,14 @@ defmodule Hal.Tool do
     Herd.stop(:hal_shepherd, pids)
   end
 
+  # helper for the future cron that will clean ets/mnesia tables?
+  # defp shift_time(time, unit \\ :days, timeshift \\ 7) do
+  #   case unit do
+  #     :days    -> Timex.shift(time, days: timeshift)
+  #     :hours   -> Timex.shift(time, hours: timeshift)
+  #     :minutes -> Timex.shift(time, minutes: timeshift)
+  #     :seconds -> Timex.shift(time, seconds: timeshift)
+  #   end
+  # end
+
 end

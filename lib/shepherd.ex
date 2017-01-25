@@ -11,7 +11,6 @@ defmodule Hal.Shepherd do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-
   @doc """
   Return the list of pids.
 
@@ -37,7 +36,6 @@ defmodule Hal.Shepherd do
   def stop(pid, modules) do
     GenServer.cast(pid, {:stop, modules})
   end
-
 
   # Server callbacks
   def init(_args) do
@@ -109,8 +107,8 @@ defmodule Hal.Shepherd do
       {module, parent} ->
         kill_process(module_pid, module)
         case parent do          # do we need to go deeper?
-          {p_module, nil} -> nil
-          {p_module, p_pid} -> terminate_processes(p_pid, state)
+          {_parent, nil} -> nil
+          {_parent, p_pid} -> terminate_processes(p_pid, state)
         end
     end
   end
