@@ -146,19 +146,13 @@ defmodule Hal.IrcHandler do
     infos = {nil, from.nick, chan}
     uid = give_me_an_id(infos)
     true = :ets.insert(state.uids, {uid, infos})
-    # TODO convert {set|get}_reminder to handle_cast?
     [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
     Brain.get_reminder(brain_pid, {uid, self()}, {nil,from.nick,chan})
     {:noreply, state}
   end
 
   def handle_info({:mentioned, _msg, _from, _chan}, state) do
-    # TODO do something about this mention
-    # opts = {msg, from.nick, chan}
-    # uid = give_me_an_id(opts)
-    # true = :ets.insert(state.uids, {uid, opts})
-    # [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
-    # Brain.parse_text(brain_pid, {uid, self()}, {msg,from,chan})
+    # do something when somebody mention us?
     {:noreply, state}
   end
 
@@ -179,7 +173,6 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info(_msg, state) do
-    # IO.inspect(msg)
     {:noreply, state}
   end
 
@@ -191,7 +184,6 @@ defmodule Hal.IrcHandler do
   def code_change(_old_vsn, state, _extra) do
     {:ok, state}
   end
-
 
   # Internal functions
   defp give_me_an_id({msg, from, chan}) do
@@ -216,12 +208,12 @@ defmodule Hal.IrcHandler do
   end
 
   defp answer(answers, chan, from, state) do
-    Enum.each(answers, &(
-          case chan do
-            nil -> IrcClient.msg state.client, :privmsg, from, &1 # private_msg
-            _   -> IrcClient.msg state.client, :privmsg, chan, &1
-          end)
-    )
+    Enum.each(answers, fn(answer) ->
+      case chan do
+        nil -> IrcClient.msg state.client, :privmsg, from, answer # private_msg
+        _   -> IrcClient.msg state.client, :privmsg, chan, answer
+      end
+    end)
   end
 
 end

@@ -35,7 +35,6 @@ defmodule Hal.PluginTime do
     GenServer.cast(pid, {:current_time, params, req})
   end
 
-
   # Server callbacks
   def init(_state) do
     IO.puts("[NEW] PluginTime #{inspect self()}")
@@ -66,7 +65,6 @@ defmodule Hal.PluginTime do
     {:ok, state}
   end
 
-
   # Internal functions
   defp current_time(params, {uid, frompid}, state) do
     time_res = case params do
@@ -88,17 +86,17 @@ defmodule Hal.PluginTime do
 
   defp find_timezone(params, state) do
     # get geocode
-    url = "https://maps.googleapis.com/maps/api/geocode/json?address="
     address = Enum.join(params, "+")
-    gc_url = url <> "#{address}&key=#{state.gc_id}"
+    gc_url = "https://maps.googleapis.com/maps/api/geocode/json?address=" <>
+      "#{address}&key=#{state.gc_id}"
     gc_json = quick_request(gc_url)
     coord = hd(gc_json["results"])["geometry"]["location"]
     {lat, lng} = {coord["lat"], coord["lng"]}
 
     # find the timezone for this geocode
     {_, sec, _} = :erlang.timestamp()
-    url = "https://maps.googleapis.com/maps/api/timezone/json?location="
-    tz_url = url <> "#{lat},#{lng}&timestamp=#{sec}&key=#{state.tz_id}"
+    tz_url = "https://maps.googleapis.com/maps/api/timezone/json?location=" <>
+      "#{lat},#{lng}&timestamp=#{sec}&key=#{state.tz_id}"
     tz_json = quick_request(tz_url)
     tz_json["timeZoneId"]
   end

@@ -49,7 +49,6 @@ defmodule Hal.PluginBrain do
     GenServer.cast(pid, {:get_reminder, req, infos})
   end
 
-
   # Server callbacks
   def init(args) do
     IO.puts("[NEW] PluginBrain #{inspect self()}")
@@ -75,7 +74,6 @@ defmodule Hal.PluginBrain do
     {:ok, state}
   end
 
-
   # Internal functions
   defp check_out_the_big_brain_on_brett(req, infos = {msg, _, _}) do
     [cmd | params] = String.split(msg)
@@ -93,9 +91,14 @@ defmodule Hal.PluginBrain do
     end
   end
 
-  defp time(params, req) do
-    [time_pid] = Herd.launch(:hal_shepherd, [Time], __MODULE__, self())
-    Time.current(time_pid, params, req)
+  defp help_cmd({uid, frompid}) do
+    answers = [
+      " .weather <scope?> <city> scope can optionally be hourly or daily",
+      " .time <tz or city> tz should follow the 'Country/City' format",
+      " .remind <someone> <msg> as soon as he /join this channel",
+      " .chan will highlight everyone else in the current channel"
+    ]
+    Tool.terminate(self(), frompid, uid, answers)
   end
 
   defp emojis({uid, frompid}, emoji) do
@@ -129,9 +132,9 @@ defmodule Hal.PluginBrain do
     end
   end
 
-  defp get_reminder(req, infos) do
-    Reminder.get(:hal_plugin_reminder, req, infos)
-    Herd.stop(:hal_shepherd, [self()])
+  defp time(params, req) do
+    [time_pid] = Herd.launch(:hal_shepherd, [Time], __MODULE__, self())
+    Time.current(time_pid, params, req)
   end
 
   defp weather(params, req = {uid, frompid}) do
@@ -150,14 +153,9 @@ defmodule Hal.PluginBrain do
     end
   end
 
-  defp help_cmd({uid, frompid}) do
-    answers = [
-      " .weather <scope?> <city> scope can optionally be hourly or daily",
-      " .time <tz or city> tz should follow the 'Country/City' format",
-      " .remind <someone> <msg> as soon as he /join this channel",
-      " .chan will highlight everyone else in the current channel"
-    ]
-    Tool.terminate(self(), frompid, uid, answers)
+  defp get_reminder(req, infos) do
+    [reminder_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
+    Reminder.get(reminder_id, req, infos)
   end
 
   defp set_reminder(_, {_, frompid}, {_msg, from, nil}) do
@@ -170,12 +168,12 @@ defmodule Hal.PluginBrain do
     case GenServer.call(frompid, {:has_user, chan, user}) do
       true ->
         answer = "#{user} is already on the channel."
-        Tool.terminate(self(), frompid, :privmsg, from, answer)
+        Tool.terminate(self(), frompid, chan, from, answer)
       _ ->
         match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
         reminder = {user, match["memo"]}
-        Reminder.set(:hal_plugin_reminder, reminder, req, infos)
-        Tool.terminate(self(), frompid, :privmsg, from, nil)
+        [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
+        Reminder.set(remind_id, reminder, req, infos)
     end
   end
 

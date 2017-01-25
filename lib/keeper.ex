@@ -21,7 +21,6 @@ defmodule Hal.Keeper do
     GenServer.call(pid, {:give_me_your_table, module})
   end
 
-
   # Server callbacks
   def init(_args) do
     IO.puts "[NEW] Keeper #{inspect self()}"

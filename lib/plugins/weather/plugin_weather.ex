@@ -73,13 +73,12 @@ defmodule Hal.PluginWeather do
     GenServer.cast(pid, {:forecast_daily, params, req})
   end
 
-
   # Server callbacks
   def init(_state) do
     IO.puts("[NEW] PluginWeather #{inspect self()}")
     filepath = "lib/plugins/weather/weather_token.sec"
     token = File.read(filepath)
-    {appid, msg} = case token do
+    {raw_appid, msg} = case token do
                      {:ok, appid} ->
                        {appid, "[INFO] weather token successfully read"}
                      _ ->
@@ -88,7 +87,7 @@ defmodule Hal.PluginWeather do
     IO.puts(msg)
 
     # construct our initial state
-    appid = String.trim(appid)
+    appid = String.trim(raw_appid)
     state = %Credentials{appid: appid}
     {:ok, state}
   end
@@ -120,7 +119,6 @@ defmodule Hal.PluginWeather do
     {:ok, state}
   end
 
-
   # Internal functions
   defp get_weather({type, params, req = {uid,frompid}}, appid, url) do
     json = send_request(params, req, appid, url)
@@ -145,10 +143,10 @@ defmodule Hal.PluginWeather do
     raw = Poison.decode!(json)
 
     # The API will either return a integer or a string
-    code = raw["cod"]
-    code = case is_integer(code) do
-             true -> code
-             false -> String.to_integer(code)
+    raw_code = raw["cod"]
+    code = case is_integer(raw_code) do
+             true -> raw_code
+             false -> String.to_integer(raw_code)
            end
 
     # check if the API request was successful
