@@ -53,9 +53,9 @@ defmodule Hal.Tool do
   `answer` formed by a tuple of `chan` , `from` and `answers`, answers being
   a list of string.
   """
-  def terminate(pid, dest, chan, from, answer) do
+  def terminate(pid, dest, host, chan, from, answer) do
     {pids, answers} = {convert_to_list(pid), convert_to_list(answer)}
-    send dest, {:answer, {chan, from, answers}}
+    send dest, {:answer, {host, chan, from, answers}}
     Herd.stop(:hal_shepherd, pids)
   end
 

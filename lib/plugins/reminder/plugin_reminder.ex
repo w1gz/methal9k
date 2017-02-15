@@ -52,6 +52,7 @@ defmodule Hal.PluginReminder do
     IO.puts("[NEW] PluginReminder #{inspect self()}")
     :mnesia.create_table(Reminder, [
           attributes: [:to,
+                       :host,
                        :chan,
                        :memo,
                        :from,
@@ -65,13 +66,13 @@ defmodule Hal.PluginReminder do
     # deconstruct our arguments
     {to, memo} = reminder
     {uid, frompid} = req
-    {_, from, chan} = infos
+    {_, from, host, chan} = infos
     time = Timex.now
 
     # insert only if it does not exist yet
     query = fn ->
-      case :mnesia.match_object({Reminder, to, chan, memo, from, :_}) do
-        [] -> :mnesia.write({Reminder, to, chan, memo, from, time})
+      case :mnesia.match_object({Reminder, to, host, chan, memo, from, :_}) do
+        [] -> :mnesia.write({Reminder, to, host, chan, memo, from, time})
         something when is_list(something) -> nil # reminder already set
       end
     end
@@ -86,9 +87,11 @@ defmodule Hal.PluginReminder do
     {:noreply, state}
   end
 
-  def handle_cast({:get, {uid, frompid}, {_, join_user, chan}}, state) do
+  def handle_cast({:get, req, infos}, state) do
+    {uid, frompid} = req
+    {_, join_user, host, chan} = infos
     reminders_query = fn ->
-      reminder = {Reminder, join_user, chan, :'$1', :'$2', :'$3'}
+      reminder = {Reminder, join_user, host, chan, :'$1', :'$2', :'$3'}
       case :mnesia.match_object(reminder) do
         [] -> []
         something when is_list(something) ->
@@ -101,7 +104,8 @@ defmodule Hal.PluginReminder do
     answers = case :mnesia.transaction(reminders_query) do
                 {:atomic, []} -> nil
                 {:atomic, results} ->
-                  Enum.map(results, fn({_, _, _, memo, from, time}) ->
+                  Enum.map(results, fn(res) ->
+                    {_reminder, _to, _host, _chan, memo, from, time} = res
                     "#{from} to #{join_user}: #{memo} (#{time})"
                   end)
               end
