@@ -34,37 +34,37 @@ defmodule Hal do
   def start(_type, [credentials]) do
     import Supervisor.Spec, warn: false
 
-    # try to read config file
+    # read config file or fallback to internal configuration
     confs = try do
               YamlElixir.read_all_from_file(credentials)
-            rescue
-              _ -> [Map.new()]
+            catch
+              _ -> [%State{}]
             else
-              [yaml] -> import_conf(yaml["servers"])
+              [yaml] -> case yaml do
+                          %{} -> throw("is #{credentials} a proper yaml file?")
+                          _ ->
+                            servers = yaml["servers"]
+                            parse_conf(servers)
+                        end
             end
 
     # launch Mnesia
     :mnesia.create_schema([node()])
     :mnesia.start()
 
-    global_workers = [
+    # static processes
+    children = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
       worker(Hal.Shepherd, [[], [name: :hal_shepherd]]),
+      supervisor(Hal.IrcSupervisor, [confs, []])
     ]
 
-    # TODO accept multiple servers instead of the first one
-    handlers = Enum.map(confs, fn(args) -> [
-      supervisor(Hal.IrcSupervisor, [args, []])
-    ] end)
-
-    children = global_workers ++ hd(handlers) # TODO remove hd
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 
-  defp import_conf(servers) do
+  defp parse_conf(servers) do
     Enum.map(servers, fn(s) ->
-      {:ok, client} = ExIrc.start_client!
-      %State{client: client,
+      %State{host: s["host"],
              port: s["port"],
              chans: s["chans"],
              nick: s["nick"],

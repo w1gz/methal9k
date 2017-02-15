@@ -5,6 +5,7 @@ defmodule Hal.IrcSupervisor do
   """
 
   use Supervisor
+  alias Hal.State, as: State
 
   def start_link(args, opts \\ []) do
     Supervisor.start_link(__MODULE__, args, opts)
@@ -12,9 +13,16 @@ defmodule Hal.IrcSupervisor do
 
   def init(args) do
     IO.puts "[NEW] IrcSupervisor #{inspect self()}"
-    children = [
-      worker(Hal.IrcHandler, [args, []])
-    ]
+
+    # generate one irchandler per host
+    children = args
+    |> Enum.map(fn(arg) ->
+      {:ok, client} = ExIrc.start_client!
+      state = %State{arg | client: client}
+      worker(Hal.IrcHandler, [state], id: String.to_atom(arg.host))
+    end)
+    |> List.flatten
+
     supervise(children, strategy: :one_for_one)
   end
 

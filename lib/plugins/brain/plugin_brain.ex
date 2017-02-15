@@ -33,22 +33,6 @@ defmodule Hal.PluginBrain do
     GenServer.cast(pid, {:command, req, infos})
   end
 
-  @doc """
-  Forward the call the plugin in charge of retrieving the reminders.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
-
-  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
-  (include the command).  `from` the person who initiated the reminder.  `chan`
-  the channel on which this happened.
-  """
-  def get_reminder(pid, req, infos) do
-    GenServer.cast(pid, {:get_reminder, req, infos})
-  end
-
   # Server callbacks
   def init(args) do
     IO.puts("[NEW] PluginBrain #{inspect self()}")
@@ -57,11 +41,6 @@ defmodule Hal.PluginBrain do
 
   def handle_cast({:command, req, infos}, state) do
     check_out_the_big_brain_on_brett(req, infos)
-    {:noreply, state}
-  end
-
-  def handle_cast({:get_reminder, req, infos}, state) do
-    get_reminder(req, infos)
     {:noreply, state}
   end
 
@@ -75,23 +54,26 @@ defmodule Hal.PluginBrain do
   end
 
   # Internal functions
-  defp check_out_the_big_brain_on_brett(req, infos = {msg, _, _}) do
+  defp check_out_the_big_brain_on_brett(req, infos) do
+    {msg, _, _, _} = infos
     [cmd | params] = String.split(msg)
     case cmd do
       ".help"       -> help_cmd(req)
       ".weather"    -> weather(params, req)
       ".time"       -> time(params, req)
-      ".remind"     -> set_reminder({cmd, hd(params)}, req, infos)
+      ".joined"     -> get_reminder(req, infos)
+      ".remind"     -> set_reminder(params, req, infos)
       ".chan"       -> highlight_channel(req, infos)
-      ".flip"       -> emojis(req, :flip)
-      ".shrug"      -> emojis(req, :shrug)
-      ".disapprove" -> emojis(req, :disapprove)
-      ".dealwithit" -> emojis(req, :dealwithit)
+      ".flip"       -> emojis(req, "flip")
+      ".shrug"      -> emojis(req, "shrug")
+      ".disapprove" -> emojis(req, "disapprove")
+      ".dealwithit" -> emojis(req, "dealwithit")
       _             -> nil
     end
   end
 
-  defp help_cmd({uid, frompid}) do
+  defp help_cmd(req) do
+    {uid, frompid} = req
     answers = [
       " .weather <scope?> <city> scope can optionally be hourly or daily",
       " .time <tz or city> tz should follow the 'Country/City' format",
@@ -101,17 +83,20 @@ defmodule Hal.PluginBrain do
     Tool.terminate(self(), frompid, uid, answers)
   end
 
-  defp emojis({uid, frompid}, emoji) do
+  defp emojis(req, emoji) do
+    {uid, frompid} = req
     answer = case emoji do
-               :flip       -> "(╯°□°）╯︵ ┻━┻"
-               :shrug      -> "¯\_(ツ)_/¯"
-               :disapprove -> "ಠ_ಠ"
-               :dealwithit -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
+               "flip"       -> "(╯°□°）╯︵ ┻━┻"
+               "shrug"      -> "¯\_(ツ)_/¯"
+               "disapprove" -> "ಠ_ಠ"
+               "dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
              end
     Tool.terminate(self(), frompid, uid, answer)
   end
 
-  defp highlight_channel({uid, frompid}, {_msg, from, chan}) do
+  defp highlight_channel(req, infos) do
+    {uid, frompid} = req
+    {_msg, from, _host, chan} = infos
     answers = case chan do
                 nil -> ["This is not a channel"]
                 _   -> retrieve_users(frompid, from, chan)
@@ -137,7 +122,8 @@ defmodule Hal.PluginBrain do
     Time.current(time_pid, params, req)
   end
 
-  defp weather(params, req = {uid, frompid}) do
+  defp weather(params, req) do
+    {uid, frompid} = req
     case params do
       [] -> Tool.terminate(self(), frompid, uid, "Missing arguments")
       ["hourly" | arg2] ->
@@ -158,23 +144,35 @@ defmodule Hal.PluginBrain do
     Reminder.get(reminder_id, req, infos)
   end
 
-  defp set_reminder(_, {_, frompid}, {_msg, from, nil}) do
-    answer = "I can't do that on private messages!"
-    Tool.terminate(self(), frompid, :privmsg, from, answer)
-  end
+  defp set_reminder(params, req, infos) do
+    {_, frompid} = req
+    {_msg, from, host, chan} = infos
 
-  defp set_reminder({cmd, user}, req = {_, frompid}, infos) do
-    {msg, from, chan} = infos
+    # extract user and memo
+    user = hd(params)
+    memo = Enum.join(tl(params), " ")
+
+    # check if reminder is set from private messages
+    case chan do
+      nil ->
+        answer = "I can't do that on private messages!"
+        Tool.terminate(self(), frompid, host, :privmsg, from, answer)
+      _ -> nil
+    end
+
+    # check if user is already present on the channel
     case GenServer.call(frompid, {:has_user, chan, user}) do
       true ->
         answer = "#{user} is already on the channel."
-        Tool.terminate(self(), frompid, chan, from, answer)
+        Tool.terminate(self(), frompid, host, chan, from, answer)
       _ ->
-        match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-        reminder = {user, match["memo"]}
+        # match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
+        # reminder = {user, match["memo"]}
+        reminder = {user, memo}
         [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
         Reminder.set(remind_id, reminder, req, infos)
     end
+
   end
 
 end

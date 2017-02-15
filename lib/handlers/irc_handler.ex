@@ -78,9 +78,10 @@ defmodule Hal.IrcHandler do
     uids = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
              true -> nil # we will receive this by ETS-TRANSFER later on
              _ -> hal_pid = Process.whereis(:hal_keeper)
-             :ets.new(:irc_handler_ets, [:set,
-                                         :private,
-                                         {:heir, hal_pid, __MODULE__}])
+             :ets.new(String.to_atom(args.host),
+               [:set,
+                :private,
+                {:heir, hal_pid, __MODULE__}])
            end
     state = %{args | uids: uids}
     {:ok, state}
@@ -103,14 +104,15 @@ defmodule Hal.IrcHandler do
   def handle_cast({:answer, {uid, answers}}, state) do
     case :ets.lookup(state.uids, uid) do
       [] -> :ok
-      [{_uid, {_msg, from, chan}}] ->
+      [{_uid, {_msg, from, _host, chan}}] ->
         answer(answers, chan, from, state)
         :ets.delete(state.uids, uid)
     end
     {:noreply, state}
   end
 
-  def handle_cast({:answer, {chan, from, answers}}, state) do
+  def handle_cast({:answer, infos}, state) do
+    {_host, chan, from, answers} = infos
     answer(answers, chan, from, state)
     {:noreply, state}
   end
@@ -133,21 +135,17 @@ defmodule Hal.IrcHandler do
 
   # ExIrc.client.quit state.client, "I live, I die. I LIVE AGAIN!"
   def handle_info(:logged_in, state) do
-    IO.puts "[INFO] joining channels:"
     Enum.each(state.chans, fn(chan) ->
-      IO.puts(chan)
       IrcClient.join state.client, chan
     end)
-
+    chans = state.chans |> Enum.join(", ")
+    IO.puts "[#{state.host}] joining channels: #{chans}"
     {:noreply, state}
   end
 
   def handle_info({:joined, chan, from}, state) do
-    infos = {nil, from.nick, chan}
-    uid = give_me_an_id(infos)
-    true = :ets.insert(state.uids, {uid, infos})
-    [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
-    Brain.get_reminder(brain_pid, {uid, self()}, {nil,from.nick,chan})
+    infos = {".joined", from.nick, state.host, chan}
+    generic_received(infos, state)
     {:noreply, state}
   end
 
@@ -157,12 +155,14 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:received, msg, from}, state) do
-    generic_received({msg, from.nick, nil}, state)
+    infos = {msg, from.nick, state.host, nil}
+    generic_received(infos, state)
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from, chan}, state) do
-    generic_received({msg, from.nick, chan}, state)
+    infos = {msg, from.nick, state.host, chan}
+    generic_received(infos, state)
     {:noreply, state}
   end
 
@@ -186,24 +186,28 @@ defmodule Hal.IrcHandler do
   end
 
   # Internal functions
-  defp give_me_an_id({msg, from, chan}) do
+  defp give_me_an_id(infos) do
+    {msg, from, host, chan} = infos
     time_seed = UUID.uuid1()
-    UUID.uuid5(time_seed, "#{msg}#{from}#{chan}", :hex)
+    UUID.uuid5(time_seed, "#{msg}#{from}#{host}#{chan}", :hex)
   end
 
-  defp generic_received(opts = {msg, _from, _chan}, state) do
+  defp generic_received(infos, state) do
+    {msg, _ ,_ ,_} = infos
     case String.at(msg, 0) do
       "." ->
-        uid = generate_request(opts, state)
+        uid = generate_request(infos, state)
         [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
-        Brain.command(brain_pid, {uid, self()}, opts)
+        req = {uid, self()}
+        Brain.command(brain_pid, req, infos)
       _ -> nil
     end
   end
 
-  defp generate_request(opts, state) do
-    uid = give_me_an_id(opts)
-    true = :ets.insert(state.uids, {uid, opts})
+  defp generate_request(infos, state) do
+    uid = give_me_an_id(infos)
+    req = {uid, infos}
+    true = :ets.insert(state.uids, req)
     uid
   end
 
