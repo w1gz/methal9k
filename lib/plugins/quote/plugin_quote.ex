@@ -20,9 +20,10 @@ defmodule Hal.PluginQuote do
     end
 
     action = case String.split(quoted_action) do
-               [] -> ""
+               []      -> ""
                [h | _] -> h
              end
+
     case action do
       "add" ->
         quote_msg = quick_trim.(quoted_action, action)
@@ -75,7 +76,7 @@ defmodule Hal.PluginQuote do
     {id, _rem} = Integer.parse(quote_id)
     query = fn -> :mnesia.delete({Quote, id}) end
     answer = case :mnesia.transaction(query) do
-               {:atomic, :ok} -> "Quote #{id} successfully deleted."
+               {:atomic, :ok}      -> "Quote #{id} successfully deleted."
                {:aborted, _reason} -> "Can't delete, something's wrong..."
              end
     Tool.terminate(self(), frompid, uid, answer)
