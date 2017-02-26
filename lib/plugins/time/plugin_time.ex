@@ -32,7 +32,7 @@ defmodule Hal.PluginTime do
   process for which the answer will be sent.
   """
   def current(pid, params, req) do
-    GenServer.cast(pid, {:current_time, params, req})
+    GenServer.cast(pid, {:get, params, req})
   end
 
   # Server callbacks
@@ -51,7 +51,7 @@ defmodule Hal.PluginTime do
     {:ok, state}
   end
 
-  def handle_cast({:current_time, params, req}, state) do
+  def handle_cast({:get, params, req}, state) do
     current_time(params, req, state)
     {:noreply, state}
   end
@@ -105,7 +105,7 @@ defmodule Hal.PluginTime do
     tname = List.last(String.split(file, "/"))
     {id, msg} = case File.read(file) do
                   {:ok, id} -> {id, "[INFO] #{tname} successfully read"}
-                  _          -> {"",  "[WARN] #{tname} not found"}
+                  _         -> {"",  "[WARN] #{tname} not found"}
                 end
     IO.puts(msg)
     id
