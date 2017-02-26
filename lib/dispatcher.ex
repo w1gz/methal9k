@@ -1,10 +1,11 @@
-defmodule Hal.PluginBrain do
+defmodule Hal.Dispatcher do
   @moduledoc """
-  The brain plugin tries to dispatch the various requests to their appropriate
+  The dispatcher tries to follow up the various requests to their appropriate
   process.
   """
 
   use GenServer
+  alias Hal.PluginQuote, as: Quote
   alias Hal.PluginReminder, as: Reminder
   alias Hal.PluginWeather, as: Weather
   alias Hal.PluginTime, as: Time
@@ -35,7 +36,7 @@ defmodule Hal.PluginBrain do
 
   # Server callbacks
   def init(args) do
-    IO.puts("[NEW] PluginBrain #{inspect self()}")
+    IO.puts("[NEW] Dispatcher #{inspect self()}")
     {:ok, args}
   end
 
@@ -63,6 +64,7 @@ defmodule Hal.PluginBrain do
       ".time"       -> time(params, req)
       ".joined"     -> get_reminder(req, infos)
       ".remind"     -> set_reminder(params, req, infos)
+      ".quote"      -> manage_quote(String.replace_prefix(msg, cmd, "") , req)
       ".chan"       -> highlight_channel(req, infos)
       ".flip"       -> emojis(req, "flip")
       ".shrug"      -> emojis(req, "shrug")
@@ -75,9 +77,10 @@ defmodule Hal.PluginBrain do
   defp help_cmd(req) do
     {uid, frompid} = req
     answers = [
-      " .weather <scope?> <city> scope can optionally be hourly or daily",
-      " .time <tz or city> tz should follow the 'Country/City' format",
+      " .weather <scope>? <city> scope can optionally be hourly or daily",
+      " .time <tz|city> tz should follow the 'Country/City' format",
       " .remind <someone> <msg> as soon as he /join this channel",
+      " .quote <add|del>? <msg> used when something needs to be remembered",
       " .chan will highlight everyone else in the current channel"
     ]
     Tool.terminate(self(), frompid, uid, answers)
@@ -172,7 +175,11 @@ defmodule Hal.PluginBrain do
         [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
         Reminder.set(remind_id, reminder, req, infos)
     end
+  end
 
+  def manage_quote(quoted_action, req) do
+    [quote_id] = Herd.launch(:hal_shepherd, [Quote], __MODULE__, self())
+    Quote.manage_quote(quote_id, quoted_action, req)
   end
 
 end

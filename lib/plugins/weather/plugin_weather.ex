@@ -79,11 +79,11 @@ defmodule Hal.PluginWeather do
     filepath = "lib/plugins/weather/weather_token.sec"
     token = File.read(filepath)
     {raw_appid, msg} = case token do
-                     {:ok, appid} ->
-                       {appid, "[INFO] weather token successfully read"}
-                     _ ->
-                       {"", "[WARN] weather token not found"}
-                   end
+                         {:ok, appid} ->
+                           {appid, "[INFO] weather token successfully read"}
+                         _ ->
+                           {"", "[WARN] weather token not found"}
+                       end
     IO.puts(msg)
 
     # construct our initial state

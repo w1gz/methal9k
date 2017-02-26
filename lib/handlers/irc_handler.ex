@@ -6,7 +6,7 @@ defmodule Hal.IrcHandler do
 
   use GenServer
   alias ExIrc.Client, as: IrcClient
-  alias Hal.PluginBrain, as: Brain
+  alias Hal.Dispatcher, as: Dispatcher
   alias Hal.IrcHandler, as: IrcHandler
   alias Hal.Shepherd, as: Herd
   alias Hal.Keeper, as: Keeper
@@ -197,9 +197,9 @@ defmodule Hal.IrcHandler do
     case String.at(msg, 0) do
       "." ->
         uid = generate_request(infos, state)
-        [brain_pid] = Herd.launch(:hal_shepherd, [Brain], __MODULE__)
+        [dispatcher_pid] = Herd.launch(:hal_shepherd, [Dispatcher], __MODULE__)
         req = {uid, self()}
-        Brain.command(brain_pid, req, infos)
+        Dispatcher.command(dispatcher_pid, req, infos)
       _ -> nil
     end
   end

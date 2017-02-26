@@ -21,7 +21,7 @@ defmodule Hal do
     """
 
     defstruct client: nil,
-      host: "127.0.0.1",
+      host: "172.17.0.2",
       port: 6667,
       chans: ["#hal", "#test"],
       nick: "hal",
