@@ -22,7 +22,7 @@ defmodule Hal.Shepherd do
 
   `parent_pid` the process's pid that launch the request.
   """
-  def launch(pid, modules, parent_module, parent_pid \\ nil) do
+  def launch(pid, modules, parent_module \\ nil, parent_pid \\ nil) do
     GenServer.call(pid, {:launch, modules, {parent_module, parent_pid}})
   end
 
@@ -85,8 +85,9 @@ defmodule Hal.Shepherd do
   defp kill_process(pid, module) do
     Process.unlink(pid)
     # TODO Handle other behavior such as Supervisor?
-    case GenServer.stop(pid) do
-      :ok -> nil
+    # case GenServer.stop(pid) do
+    case module.terminate(pid, "Managed by Shepherd") do
+      {:ok, _} -> nil
       _ -> IO.puts("[ERR] Can't kill #{inspect module} #{inspect pid}")
     end
   end

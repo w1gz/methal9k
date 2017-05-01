@@ -1,4 +1,4 @@
-defmodule Hal.PluginWeather do
+defmodule Hal.Plugin.Weather do
   @moduledoc """
   Provide facility for weather and forecast informations.
   """
@@ -17,6 +17,10 @@ defmodule Hal.PluginWeather do
   # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
+  end
+
+  def usage(pid) do
+    GenServer.call(pid, :usage)
   end
 
   @doc """
@@ -90,6 +94,11 @@ defmodule Hal.PluginWeather do
     appid = String.trim(raw_appid)
     state = %Credentials{appid: appid}
     {:ok, state}
+  end
+
+  def handle_call(:usage, _frompid, state) do
+    answer = ".weather <scope>? <city> scope can optionally be hourly or daily"
+    {:reply, answer, state}
   end
 
   def handle_cast(args = {:current, _params, _req}, state) do

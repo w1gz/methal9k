@@ -5,10 +5,10 @@ defmodule Hal.Dispatcher do
   """
 
   use GenServer
-  alias Hal.PluginQuote, as: Quote
-  alias Hal.PluginReminder, as: Reminder
-  alias Hal.PluginWeather, as: Weather
-  alias Hal.PluginTime, as: Time
+  alias Hal.Plugin.Quote, as: Quote
+  alias Hal.Plugin.Reminder, as: Reminder
+  alias Hal.Plugin.Weather, as: Weather
+  alias Hal.Plugin.Time, as: Time
   alias Hal.Shepherd, as: Herd
   alias Hal.Tool, as: Tool
 
@@ -74,15 +74,28 @@ defmodule Hal.Dispatcher do
     end
   end
 
-  defp help_cmd(req) do
-    {uid, frompid} = req
-    answers = [
-      " .weather <scope>? <city> scope can optionally be hourly or daily",
-      " .time <tz|city> tz should follow the 'Country/City' format",
-      " .remind <someone> <msg> as soon as he /join this channel",
-      " .quote <add|del>? <msg> used when something needs to be remembered",
-      " .chan will highlight everyone else in the current channel"
+  defp help_cmd({uid, frompid} = _req) do
+    # dynamically find what Plugin.* modules are loaded
+    plugins = with {:ok, module_list} <- :application.get_key(:hal, :modules) do
+                Enum.filter(module_list, fn(mod) ->
+                  smod = Module.split(mod)
+                  length(smod) == 3 and String.match?(Enum.at(smod, 1), ~r/Plugin.*/)
+                end)
+              end
+
+    # spawn plugins, get their usage and shut them down
+    plugins_answers = Enum.map(plugins, fn(module) ->
+      [pid] = Herd.launch(:hal_shepherd, [module])
+      answer = module.usage(pid)
+      Tool.terminate(pid)
+      answer
+    end)
+
+    orphans = [
+      ".chan will highlight everyone else in the current channel"
     ]
+
+    answers = plugins_answers ++ orphans
     Tool.terminate(self(), frompid, uid, answers)
   end
 

@@ -1,4 +1,4 @@
-defmodule Hal.PluginQuote do
+defmodule Hal.Plugin.Quote do
   @moduledoc """
   Manage famous quotes of a channel
   """
@@ -39,6 +39,10 @@ defmodule Hal.PluginQuote do
     end
   end
 
+  def usage(pid) do
+    GenServer.call(pid, :usage)
+  end
+
   # Server callbacks
   def init(args) do
     IO.puts("[NEW] PluginQuote #{inspect self()}")
@@ -51,6 +55,11 @@ defmodule Hal.PluginQuote do
           type: :ordered_set,
           disc_copies: [node()]])
     {:ok, args}
+  end
+
+  def handle_call(:usage, _frompid, state) do
+    answer = ".quote <add|del>? <msg> famous quotes start here"
+    {:reply, answer, state}
   end
 
   def handle_cast({:add, {uid, frompid} = _req, msg_to_quote}, state) do
