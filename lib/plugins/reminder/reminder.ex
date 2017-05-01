@@ -1,4 +1,4 @@
-defmodule Hal.PluginReminder do
+defmodule Hal.Plugin.Reminder do
   @moduledoc """
   Leave messages/reminder for a disconnected contact
   """
@@ -9,6 +9,10 @@ defmodule Hal.PluginReminder do
   # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
+  end
+
+  def usage(pid) do
+    GenServer.call(pid, :usage)
   end
 
   @doc """
@@ -60,6 +64,11 @@ defmodule Hal.PluginReminder do
           type: :bag,
           disc_copies: [node()]])
     {:ok, args}
+  end
+
+  def handle_call(:usage, _frompid, state) do
+    answer = ".remind <someone> <msg> as soon as he /join this channel"
+    {:reply, answer, state}
   end
 
   def handle_cast({:set, reminder, req, infos}, state) do

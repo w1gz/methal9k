@@ -1,4 +1,4 @@
-defmodule Hal.PluginTime do
+defmodule Hal.Plugin.Time do
   @moduledoc """
   Provide Time capability, including timezone
   """
@@ -19,6 +19,10 @@ defmodule Hal.PluginTime do
   # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
+  end
+
+  def usage(pid) do
+    GenServer.call(pid, :usage)
   end
 
   @doc """
@@ -49,6 +53,11 @@ defmodule Hal.PluginTime do
     }
 
     {:ok, state}
+  end
+
+  def handle_call(:usage, _frompid, state) do
+    answer = ".time <tz|city> tz should follow the 'Country/City' format"
+    {:reply, answer, state}
   end
 
   def handle_cast({:get, params, req}, state) do

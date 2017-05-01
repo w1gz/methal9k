@@ -37,8 +37,11 @@ You can then connect to the local IRC server:
  - port: 6667
  - IP: your container's IP ([Can't find the container IP address?](#dockertips))
 
+
 <a name="dockertips"/>
+
 ### Docker tips
+
 Use `docker ps` to find the container_id and `docker inspect <container_id>` to
 find the IP.  You will probably need root privilege in order to talk to the
 Docker daemon.

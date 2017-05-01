@@ -17,6 +17,11 @@ defmodule Hal.Tool do
     end
   end
 
+  def terminate(pid) do
+    pids = convert_to_list(pid)
+    Herd.stop(:hal_shepherd, pids)
+  end
+
   @doc """
   Kill a process and send its answer to the appropriate process.
 
