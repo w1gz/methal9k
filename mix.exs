@@ -25,6 +25,7 @@ defmodule Methal9k.Mixfile do
       {:uuid, ">= 1.1.6"},
       {:timex, ">= 3.1.11"},
       {:yaml_elixir, ">= 1.3.0"},
+      {:html_entities, ">= 0.3.0"},
       {:credo, ">= 0.6.1", only: :dev},
       {:dogma, ">= 0.1.13", only: :dev},
       {:ex_doc, ">= 0.14.5", only: :dev},

@@ -10,6 +10,7 @@ defmodule Hal.IrcHandler do
   alias Hal.IrcHandler, as: IrcHandler
   alias Hal.Shepherd, as: Herd
   alias Hal.Keeper, as: Keeper
+  alias Hal.Plugin.Url, as: Url
 
   # Client
   def start_link(args, opts \\ []) do
@@ -200,7 +201,17 @@ defmodule Hal.IrcHandler do
         [dispatcher_pid] = Herd.launch(:hal_shepherd, [Dispatcher], __MODULE__)
         req = {uid, self()}
         Dispatcher.command(dispatcher_pid, req, infos)
-      _ -> nil
+      _ ->
+        urls = Regex.scan(~r/https?:\/\/[^\s]+/, msg) |> List.flatten
+        case urls do
+          [] ->
+            nil
+          _ ->
+            uid = generate_request(infos, state)
+            [url_pid] = Herd.launch(:hal_shepherd, [Url], __MODULE__)
+            req = {uid, self()}
+            Url.preview(url_pid, urls, req)
+        end
     end
   end
 

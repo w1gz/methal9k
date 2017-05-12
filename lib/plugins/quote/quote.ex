@@ -14,7 +14,6 @@ defmodule Hal.Plugin.Quote do
   def manage_quote(pid, quoted_action, req) do
     quick_trim = fn(str, match) ->
       str
-      |> String.trim_leading()
       |> String.replace_prefix(match, "")
       |> String.trim_leading()
     end

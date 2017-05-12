@@ -9,6 +9,7 @@ defmodule Hal.Dispatcher do
   alias Hal.Plugin.Reminder, as: Reminder
   alias Hal.Plugin.Weather, as: Weather
   alias Hal.Plugin.Time, as: Time
+  alias Hal.Plugin.Url, as: Url
   alias Hal.Shepherd, as: Herd
   alias Hal.Tool, as: Tool
 
@@ -64,14 +65,21 @@ defmodule Hal.Dispatcher do
       ".time"       -> time(params, req)
       ".joined"     -> get_reminder(req, infos)
       ".remind"     -> set_reminder(params, req, infos)
-      ".quote"      -> manage_quote(String.replace_prefix(msg, cmd, "") , req)
+      ".quote"      -> manage_quote(rm_cmd(msg, cmd), req)
       ".chan"       -> highlight_channel(req, infos)
+      ".url"        -> url_preview(rm_cmd(msg, cmd), req)
       ".flip"       -> emojis(req, "flip")
       ".shrug"      -> emojis(req, "shrug")
       ".disapprove" -> emojis(req, "disapprove")
       ".dealwithit" -> emojis(req, "dealwithit")
       _             -> nil
     end
+  end
+
+  defp rm_cmd(msg, cmd) do
+    msg
+    |> String.replace_prefix(cmd, "")
+    |> String.trim_leading()
   end
 
   defp help_cmd({uid, frompid} = _req) do
@@ -193,6 +201,12 @@ defmodule Hal.Dispatcher do
   def manage_quote(quoted_action, req) do
     [quote_id] = Herd.launch(:hal_shepherd, [Quote], __MODULE__, self())
     Quote.manage_quote(quote_id, quoted_action, req)
+  end
+
+  # this is only called by the .url command, not the autoparsing one
+  defp url_preview(url, req) do
+    [url_id] = Herd.launch(:hal_shepherd, [Url], __MODULE__, self())
+    Url.preview(url_id, [url], req)
   end
 
 end
