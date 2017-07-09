@@ -1,35 +1,34 @@
 FROM ubuntu:16.04
 
-## Set some sane ENV value (e.g. for Elixir's UTF8 string)
-ENV DEBIAN_FRONTEND noninteractive
-#RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
-
-## Install Ubuntu's dependencies for this project
+## Install dependencies for this project
 RUN apt-get update &&\
     apt-get upgrade -fyq &&\
-    apt-get install -fyq sudo vim curl git make \
+    apt-get install -fyq locales sudo vim curl git make \
             erlang-nox erlang-dev \
             ngircd supervisor &&\
     apt-get clean &&\
     apt-get autoclean &&\
     rm -rf /tmp/*
 
+## Set some sane value
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
 ## ngIRCd quirks
 RUN chown irc:irc /etc/ngircd/ngircd.conf
 ADD supervisor.conf /etc/supervisor/conf.d/ngircd.conf
 
 ## Create a default user for this container
-RUN mkdir -p /home/devel /etc/sudoers.d/ &&\
-    echo "devel:x:2133:2133:Devel,,,:/home/devel:/bin/bash" >> /etc/passwd &&\
-    echo "devel:x:2133:" >> /etc/group &&\
-    echo "devel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/devel &&\
-    chmod 0440 /etc/sudoers.d/devel &&\
-    chown 2133:2133 -R /home/devel
-USER devel
-ENV HOME /home/devel
+RUN mkdir -p /home/dev /etc/sudoers.d/ &&\
+    echo "dev:x:2133:2133:Dev,,,:/home/dev:/bin/bash" >> /etc/passwd &&\
+    echo "dev:x:2133:" >> /etc/group &&\
+    echo "dev ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/dev &&\
+    chmod 0440 /etc/sudoers.d/dev &&\
+    chown 2133:2133 -R /home/dev
+USER dev
+ENV HOME /home/dev
 WORKDIR $HOME
 
 ## Build Elixir

@@ -23,16 +23,9 @@ defmodule Hal.Dispatcher do
   `msg` argument).
 
   `pid` the pid of the GenServer that will be called.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
-
-  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
-  (include the command).  `from` the person who initiated the reminder.  `chan`
-  the channel on which this happened.
   """
-  def command(pid, req, infos) do
-    GenServer.cast(pid, {:command, req, infos})
+  def command(pid, infos) do
+    GenServer.cast(pid, {:command, infos})
   end
 
   # Server callbacks
@@ -41,8 +34,8 @@ defmodule Hal.Dispatcher do
     {:ok, args}
   end
 
-  def handle_cast({:command, req, infos}, state) do
-    check_out_the_big_brain_on_brett(req, infos)
+  def handle_cast({:command, infos}, state) do
+    check_out_the_big_brain_on_brett(infos)
     {:noreply, state}
   end
 
@@ -56,22 +49,21 @@ defmodule Hal.Dispatcher do
   end
 
   # Internal functions
-  defp check_out_the_big_brain_on_brett(req, infos) do
-    {msg, _, _, _} = infos
-    [cmd | params] = String.split(msg)
+  defp check_out_the_big_brain_on_brett(infos) do
+    [cmd | params] = String.split(infos.msg)
     case cmd do
-      ".help"       -> help_cmd(req)
-      ".weather"    -> weather(params, req)
-      ".time"       -> time(params, req)
-      ".joined"     -> get_reminder(req, infos)
-      ".remind"     -> set_reminder(params, req, infos)
-      ".quote"      -> manage_quote(rm_cmd(msg, cmd), req)
-      ".chan"       -> highlight_channel(req, infos)
-      ".url"        -> url_preview(rm_cmd(msg, cmd), req)
-      ".flip"       -> emojis(req, "flip")
-      ".shrug"      -> emojis(req, "shrug")
-      ".disapprove" -> emojis(req, "disapprove")
-      ".dealwithit" -> emojis(req, "dealwithit")
+      ".help"       -> help_cmd(infos)
+      ".weather"    -> weather(params, infos)
+      ".time"       -> time(params, infos)
+      ".joined"     -> get_reminder(infos)
+      ".remind"     -> set_reminder(params, infos)
+      ".quote"      -> manage_quote(rm_cmd(infos.msg, cmd), infos)
+      ".chan"       -> highlight_channel(infos)
+      ".url"        -> url_preview(rm_cmd(infos.msg, cmd), infos)
+      ".flip"       -> emojis("flip", infos)
+      ".shrug"      -> emojis("shrug", infos)
+      ".disapprove" -> emojis("disapprove", infos)
+      ".dealwithit" -> emojis("dealwithit", infos)
       _             -> nil
     end
   end
@@ -82,7 +74,7 @@ defmodule Hal.Dispatcher do
     |> String.trim_leading()
   end
 
-  defp help_cmd({uid, frompid} = _req) do
+  defp help_cmd(infos) do
     # dynamically find what Plugin.* modules are loaded
     plugins = with {:ok, module_list} <- :application.get_key(:hal, :modules) do
                 Enum.filter(module_list, fn(mod) ->
@@ -104,28 +96,25 @@ defmodule Hal.Dispatcher do
     ]
 
     answers = plugins_answers ++ orphans
-    Tool.terminate(self(), frompid, uid, answers)
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
   end
 
-  defp emojis(req, emoji) do
-    {uid, frompid} = req
+  defp emojis(emoji, infos) do
     answer = case emoji do
                "flip"       -> "(╯°□°）╯︵ ┻━┻"
                "shrug"      -> "¯\_(ツ)_/¯"
                "disapprove" -> "ಠ_ಠ"
                "dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
              end
-    Tool.terminate(self(), frompid, uid, answer)
+    Tool.terminate(self(), infos.pid, infos.uid, answer)
   end
 
-  defp highlight_channel(req, infos) do
-    {uid, frompid} = req
-    {_msg, from, _host, chan} = infos
-    answers = case chan do
+  defp highlight_channel(infos) do
+    answers = case infos.chan do
                 nil -> ["This is not a channel"]
-                _   -> retrieve_users(frompid, from, chan)
+                _   -> retrieve_users(infos.pid, infos.from, infos.chan)
               end
-    Tool.terminate(self(), frompid, uid, answers)
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
   end
 
   defp retrieve_users(frompid, from, chan) do
@@ -141,72 +130,75 @@ defmodule Hal.Dispatcher do
     end
   end
 
-  defp time(params, req) do
+  defp time(params, infos) do
     [time_pid] = Herd.launch(:hal_shepherd, [Time], __MODULE__, self())
-    Time.current(time_pid, params, req)
+    Time.current(time_pid, params, infos)
   end
 
-  defp weather(params, req) do
-    {uid, frompid} = req
+  defp weather(params, infos) do
     case params do
-      [] -> Tool.terminate(self(), frompid, uid, "Missing arguments")
+      [] -> Tool.terminate(self(), infos.pid, infos.uid, "Missing arguments")
       ["hourly" | arg2] ->
         [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.hourly(weather_id, arg2, req)
+        Weather.hourly(weather_id, arg2, infos)
       ["daily" | arg2] ->
         [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.daily(weather_id, arg2, req)
+        Weather.daily(weather_id, arg2, infos)
       [_city | _] ->
         [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.current(weather_id, params, req)
-      _ -> Tool.terminate(self(), frompid, uid, "Nope")
+        Weather.current(weather_id, params, infos)
+      _ -> Tool.terminate(self(), infos.pid, infos.uid, "Nope")
     end
   end
 
-  defp get_reminder(req, infos) do
+  defp get_reminder(infos) do
     [reminder_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
-    Reminder.get(reminder_id, req, infos)
+    Reminder.get(reminder_id, infos)
   end
 
-  defp set_reminder(params, req, infos) do
-    {_, frompid} = req
-    {_msg, from, host, chan} = infos
-
-    # extract user and memo
-    user = hd(params)
-    memo = Enum.join(tl(params), " ")
-
-    # check if reminder is set from private messages
-    case chan do
-      nil ->
-        answer = "I can't do that on private messages!"
-        Tool.terminate(self(), frompid, host, :privmsg, from, answer)
-      _ -> nil
-    end
-
-    # check if user is already present on the channel
-    case GenServer.call(frompid, {:has_user, chan, user}) do
-      true ->
-        answer = "#{user} is already on the channel."
-        Tool.terminate(self(), frompid, host, chan, from, answer)
-      _ ->
-        # match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-        # reminder = {user, match["memo"]}
-        reminder = {user, memo}
-        [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
-        Reminder.set(remind_id, reminder, req, infos)
+  defp set_reminder(params, infos) do
+    with :ok <- reminder_refuse_priv_msg(infos),
+         {:ok, user, memo} <- reminder_extract_params(params),
+           false <- reminder_chan_has_user(user, infos) do
+      # match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
+      # reminder = {user, match["memo"]}
+      [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
+      Reminder.set(remind_id, {user, memo}, infos)
+    else
+      {:error, msg} -> Tool.terminate(self(), infos.pid, infos.uid, msg)
     end
   end
 
-  def manage_quote(quoted_action, req) do
+  defp reminder_refuse_priv_msg(infos) do
+    case infos.chan do
+      nil -> {:error, "I can't do that on private messages!"}
+      _ -> :ok
+    end
+  end
+
+  defp reminder_extract_params(params) do
+    case params do
+      [] -> {:error, "Missing parameter, type .help for usage."}
+      [head|tail] -> {:ok, head, Enum.join(tail, " ")}
+    end
+  end
+
+  defp reminder_chan_has_user(user, infos) do
+    case GenServer.call(infos.pid, {:has_user, infos.chan, user}) do
+      true -> {:error, "#{user} is already on the channel."}
+      false -> false
+    end
+  end
+
+  defp manage_quote(quoted_action, infos) do
     [quote_id] = Herd.launch(:hal_shepherd, [Quote], __MODULE__, self())
-    Quote.manage_quote(quote_id, quoted_action, req)
+    Quote.manage_quote(quote_id, quoted_action, infos)
   end
 
   # this is only called by the .url command, not the autoparsing one
-  defp url_preview(url, req) do
+  defp url_preview(url, infos) do
     [url_id] = Herd.launch(:hal_shepherd, [Url], __MODULE__, self())
-    Url.preview(url_id, [url], req)
+    Url.preview(url_id, [url], infos)
   end
 
 end

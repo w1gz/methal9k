@@ -23,32 +23,18 @@ defmodule Hal.Plugin.Reminder do
   `memo` message to register for the `user`.
 
   `pid` the pid of the GenServer that will be called.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
-
-  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
-  (include the command).  `from` the person who initiated the reminder.  `chan`
-  the channel on which this happened.
   """
-  def set(pid, reminder, req, infos) do
-    GenServer.cast(pid, {:set, reminder, req, infos})
+  def set(pid, reminder, infos) do
+    GenServer.cast(pid, {:set, reminder, infos})
   end
 
   @doc """
   Retrieve a reminder for a specific person in the appropriate channel.
 
   `pid` the pid of the GenServer that will be called.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
-
-  `infos` is a 3-tuple {msg, from, chan}. `msg` initial and complete message
-  (include the command).  `from` the person who initiated the reminder.  `chan`
-  the channel on which this happened.
   """
-  def get(pid, req, infos) do
-    GenServer.cast(pid, {:get, req, infos})
+  def get(pid, infos) do
+    GenServer.cast(pid, {:get, infos})
   end
 
   # Server callbacks
@@ -71,36 +57,35 @@ defmodule Hal.Plugin.Reminder do
     {:reply, answer, state}
   end
 
-  def handle_cast({:set, reminder, req, infos}, state) do
-    # deconstruct our arguments
-    {to, memo} = reminder
-    {uid, frompid} = req
-    {_, from, host, chan} = infos
+  def handle_cast({:set, {to, memo} = _reminder, infos}, state) do
     time = Timex.now
 
     # insert only if it does not exist yet
     query = fn ->
-      case :mnesia.match_object({Reminder, to, host, chan, memo, from, :_}) do
-        [] -> :mnesia.write({Reminder, to, host, chan, memo, from, time})
-        something when is_list(something) -> nil # reminder already set
+      case :mnesia.match_object({Reminder, to, infos.host, infos.chan, memo,
+                                  infos.from, :_}) do
+        [] ->
+          rem = {Reminder, to, infos.host, infos.chan, memo, infos.from, time}
+          :mnesia.write(rem)
+        something when is_list(something) ->
+          nil # reminder already set end end
       end
     end
 
     # choose the appropriate answer given the mnesia transaction
-    answer = case :mnesia.transaction(query) do
+    answers = case :mnesia.transaction(query) do
                {:atomic, :ok} -> "Reminder for #{to} is registered."
                {:atomic, nil} -> "Reminder already set."
              end
 
-    Tool.terminate(self(), frompid, uid, [answer])
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 
-  def handle_cast({:get, req, infos}, state) do
-    {uid, frompid} = req
-    {_, join_user, host, chan} = infos
+  def handle_cast({:get, infos}, state) do
+    # {_, join_user, host, chan} = infos
     reminders_query = fn ->
-      reminder = {Reminder, join_user, host, chan, :'$1', :'$2', :'$3'}
+      reminder = {Reminder, infos.from, infos.host, infos.chan, :'$1', :'$2', :'$3'}
       case :mnesia.match_object(reminder) do
         [] -> []
         something when is_list(something) ->
@@ -115,11 +100,11 @@ defmodule Hal.Plugin.Reminder do
                 {:atomic, results} ->
                   Enum.map(results, fn(res) ->
                     {_reminder, _to, _host, _chan, memo, from, time} = res
-                    "#{from} to #{join_user}: #{memo} (#{time})"
+                    "#{from} to #{infos.from}: #{memo} (#{time})"
                   end)
               end
 
-    Tool.terminate(self(), frompid, uid, answers)
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 
