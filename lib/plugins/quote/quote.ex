@@ -11,7 +11,7 @@ defmodule Hal.Plugin.Quote do
     GenServer.start_link(__MODULE__, [], opts)
   end
 
-  def manage_quote(pid, quoted_action, req) do
+  def manage_quote(pid, quoted_action, infos) do
     quick_trim = fn(str, match) ->
       str
       |> String.replace_prefix(match, "")
@@ -26,15 +26,15 @@ defmodule Hal.Plugin.Quote do
     case action do
       "add" ->
         quote_msg = quick_trim.(quoted_action, action)
-        GenServer.cast(pid, {:add, req, quote_msg})
+        GenServer.cast(pid, {:add, infos, quote_msg})
       "del" ->
         quote_cmd = quick_trim.(quoted_action, action)
-        GenServer.cast(pid, {:del, req, quote_cmd})
+        GenServer.cast(pid, {:del, infos, quote_cmd})
       "" ->
-        GenServer.cast(pid, {:get, req, ""})
+        GenServer.cast(pid, {:get, infos, ""})
       _ ->
         quote_msg = quoted_action |> String.trim_leading()
-        GenServer.cast(pid, {:get, req, quote_msg})
+        GenServer.cast(pid, {:get, infos, quote_msg})
     end
   end
 
@@ -61,7 +61,7 @@ defmodule Hal.Plugin.Quote do
     {:reply, answer, state}
   end
 
-  def handle_cast({:add, {uid, frompid} = _req, msg_to_quote}, state) do
+  def handle_cast({:add, infos, msg_to_quote}, state) do
     # construct dependencies for adding quote
     last_id = :mnesia.transaction(fn -> :mnesia.last(Quote) end)
     id = case last_id do
@@ -76,22 +76,22 @@ defmodule Hal.Plugin.Quote do
                {:atomic, :ok} -> "Quote #{id} registered."
                _ -> "Quote can't be registered"
              end
-    Tool.terminate(self(), frompid, uid, answer)
+    Tool.terminate(self(), infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 
-  def handle_cast({:del, {uid, frompid} = _req, quote_id}, state) do
+  def handle_cast({:del, infos, quote_id}, state) do
     {id, _rem} = Integer.parse(quote_id)
     query = fn -> :mnesia.delete({Quote, id}) end
     answer = case :mnesia.transaction(query) do
                {:atomic, :ok}      -> "Quote #{id} successfully deleted."
                {:aborted, _reason} -> "Can't delete, something's wrong..."
              end
-    Tool.terminate(self(), frompid, uid, answer)
+    Tool.terminate(self(), infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 
-  def handle_cast({:get, {uid, frompid} = _req, quote_or_id}, state) do
+  def handle_cast({:get, infos, quote_or_id}, state) do
     aborted_msg = "Can't find anything... weird."
 
     query_with_integer = fn(id) ->
@@ -130,7 +130,7 @@ defmodule Hal.Plugin.Quote do
                {id, _rem} -> query_with_integer.(id)
                :error     -> query_with_keyword.(quote_or_id)
              end
-    Tool.terminate(self(), frompid, uid, answer)
+    Tool.terminate(self(), infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 

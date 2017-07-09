@@ -29,12 +29,9 @@ defmodule Hal.Plugin.Weather do
   `pid` the pid of the GenServer that will be called.
 
   `params` list of string containing the location.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
   """
-  def current(pid, params, req) do
-    GenServer.cast(pid, {:current, params, req})
+  def current(pid, params, infos) do
+    GenServer.cast(pid, {:current, params, infos})
   end
 
   @doc """
@@ -49,12 +46,9 @@ defmodule Hal.Plugin.Weather do
   `pid` the pid of the GenServer that will be called.
 
   `params` list of string containing the location.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
   """
-  def hourly(pid, params, req) do
-    GenServer.cast(pid, {:forecast_hourly, params, req})
+  def hourly(pid, params, infos) do
+    GenServer.cast(pid, {:forecast_hourly, params, infos})
   end
 
   @doc """
@@ -69,12 +63,9 @@ defmodule Hal.Plugin.Weather do
   `pid` the pid of the GenServer that will be called.
 
   `params` list of string containing the location.
-
-  `req` is a couple {uid, frompid}. `uid` is the unique identifier for this
-  request. Whereas `frompid` is the process for which the answer will be sent.
   """
-  def daily(pid, params, req) do
-    GenServer.cast(pid, {:forecast_daily, params, req})
+  def daily(pid, params, infos) do
+    GenServer.cast(pid, {:forecast_daily, params, infos})
   end
 
   # Server callbacks
@@ -82,13 +73,12 @@ defmodule Hal.Plugin.Weather do
     IO.puts("[NEW] PluginWeather #{inspect self()}")
     filepath = "lib/plugins/weather/weather_token.sec"
     token = File.read(filepath)
-    {raw_appid, msg} = case token do
+    {raw_appid, _msg} = case token do
                          {:ok, appid} ->
                            {appid, "[INFO] weather token successfully read"}
                          _ ->
                            {"", "[WARN] weather token not found"}
                        end
-    IO.puts(msg)
 
     # construct our initial state
     appid = String.trim(raw_appid)
@@ -101,19 +91,19 @@ defmodule Hal.Plugin.Weather do
     {:reply, answer, state}
   end
 
-  def handle_cast(args = {:current, _params, _req}, state) do
+  def handle_cast(args = {:current, _params, _infos}, state) do
     url = "api.openweathermap.org/data/2.5/weather"
     get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast(args = {:forecast_hourly, _params, _req}, state) do
+  def handle_cast(args = {:forecast_hourly, _params, _infos}, state) do
     url = "api.openweathermap.org/data/2.5/forecast"
     get_weather(args, state.appid, url)
     {:noreply, state}
   end
 
-  def handle_cast(args = {:forecast_daily, _params, _req}, state) do
+  def handle_cast(args = {:forecast_daily, _params, _infos}, state) do
     url = "api.openweathermap.org/data/2.5/forecast/daily"
     get_weather(args, state.appid, url)
     {:noreply, state}
@@ -129,13 +119,13 @@ defmodule Hal.Plugin.Weather do
   end
 
   # Internal functions
-  defp get_weather({type, params, req = {uid,frompid}}, appid, url) do
-    json = send_request(params, req, appid, url)
-    answer = format_for_human(json, req, type)
-    Tool.terminate(self(), frompid, uid, answer)
+  defp get_weather({type, params, infos}, appid, url) do
+    json = send_request(params, infos, appid, url)
+    answers = format_for_human(json, infos, type)
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
   end
 
-  defp send_request(params, {uid, frompid}, appid, url) do
+  defp send_request(params, infos, appid, url) do
     # request some weather informations
     city = Enum.join(params, " ")
     query_params = %{q: city, dt: "UTC", units: "metric", APPID: appid}
@@ -143,12 +133,12 @@ defmodule Hal.Plugin.Weather do
     case res.status_code do
       200 -> res.body
       _ ->
-        answer = "HTTP Request failed with #{res.status_code}"
-        send frompid, {:answer, {uid, [answer]}}
+        answers = ["HTTP Request failed with #{res.status_code}"]
+        send infos.pid, {:answer, {infos.uid, answers}}
     end
   end
 
-  defp format_for_human(json, {uid, frompid}, weather_type) do
+  defp format_for_human(json, infos, weather_type) do
     raw = Poison.decode!(json)
 
     # The API will either return a integer or a string
@@ -161,8 +151,8 @@ defmodule Hal.Plugin.Weather do
     # check if the API request was successful
     if code != 200 do
       error_msg = raw["message"]
-      answer = "The API returns #{code}, #{error_msg}"
-      send frompid, {:answer, {uid, [answer]}}
+      answers = ["The API returns #{code}, #{error_msg}"]
+      send infos.pid, {:answer, {infos.pid, answers}}
     else
       case weather_type do
         :current         -> one_pound(raw, fun_current())
@@ -217,6 +207,8 @@ defmodule Hal.Plugin.Weather do
   end
 
   defp fun_daily do
+    filter = fn(_) -> true end
+
     daily = fn(fcst) ->
       time = fcst["dt"]
       {{year, month, day}, _} = :calendar.gregorian_seconds_to_datetime(time)
@@ -237,7 +229,6 @@ defmodule Hal.Plugin.Weather do
       ]
     end
 
-    filter = fn(_) -> true end
     {daily, filter}
   end
 

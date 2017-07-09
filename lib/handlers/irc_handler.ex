@@ -7,10 +7,19 @@ defmodule Hal.IrcHandler do
   use GenServer
   alias ExIrc.Client, as: IrcClient
   alias Hal.Dispatcher, as: Dispatcher
-  alias Hal.IrcHandler, as: IrcHandler
   alias Hal.Shepherd, as: Herd
   alias Hal.Keeper, as: Keeper
   alias Hal.Plugin.Url, as: Url
+
+  defmodule Infos do
+    defstruct msg: "",
+      from: nil,
+      host: nil,
+      chan: [],
+      uid: nil,
+      pid: nil,
+      answers: []
+  end
 
   # Client
   def start_link(args, opts \\ []) do
@@ -36,19 +45,6 @@ defmodule Hal.IrcHandler do
   """
   def get_users(pid, chan) do
     GenServer.call(pid, {:get_users, chan})
-  end
-
-  @doc """
-  Uses the ExIrc process to send the given `answers` to IRC.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `uid` of the job asking for these answers
-
-  `answer` the IRC channel in which you want to retrieve a list of users.
-  """
-  def answer(pid, answers) do
-    GenServer.cast(pid, {:answer, answers})
   end
 
   @doc """
@@ -102,24 +98,18 @@ defmodule Hal.IrcHandler do
     {:reply, status, state}
   end
 
-  def handle_cast({:answer, {uid, answers}}, state) do
+  def handle_info({:answer, _uid, nil}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info({:answer, uid, answers}, state) do
     case :ets.lookup(state.uids, uid) do
       [] -> :ok
-      [{_uid, {_msg, from, _host, chan}}] ->
-        answer(answers, chan, from, state)
+      [{_uid, infos}] ->
+        infos = %Infos{infos | answers: answers}
+        answer_back(infos, state)
         :ets.delete(state.uids, uid)
     end
-    {:noreply, state}
-  end
-
-  def handle_cast({:answer, infos}, state) do
-    {_host, chan, from, answers} = infos
-    answer(answers, chan, from, state)
-    {:noreply, state}
-  end
-
-  def handle_info({:answer, req}, state) do
-    IrcHandler.answer(self(), req)
     {:noreply, state}
   end
 
@@ -145,7 +135,7 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:joined, chan, from}, state) do
-    infos = {".joined", from.nick, state.host, chan}
+    infos = %Infos{msg: ".joined", from: from.nick, host: state.host, chan: chan}
     generic_received(infos, state)
     {:noreply, state}
   end
@@ -156,13 +146,13 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:received, msg, from}, state) do
-    infos = {msg, from.nick, state.host, nil}
+    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: nil}
     generic_received(infos, state)
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from, chan}, state) do
-    infos = {msg, from.nick, state.host, chan}
+    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: chan}
     generic_received(infos, state)
     {:noreply, state}
   end
@@ -188,45 +178,43 @@ defmodule Hal.IrcHandler do
 
   # Internal functions
   defp give_me_an_id(infos) do
-    {msg, from, host, chan} = infos
     time_seed = UUID.uuid1()
-    UUID.uuid5(time_seed, "#{msg}#{from}#{host}#{chan}", :hex)
+    data_seed = "#{infos.msg}#{infos.from}#{infos.host}#{infos.chan}"
+    UUID.uuid5(time_seed, data_seed, :hex)
   end
 
   defp generic_received(infos, state) do
-    {msg, _ ,_ ,_} = infos
-    case String.at(msg, 0) do
+    case String.at(infos.msg, 0) do
       "." ->
-        uid = generate_request(infos, state)
+        infos = generate_request(infos, state)
         [dispatcher_pid] = Herd.launch(:hal_shepherd, [Dispatcher], __MODULE__)
-        req = {uid, self()}
-        Dispatcher.command(dispatcher_pid, req, infos)
+        Dispatcher.command(dispatcher_pid, infos)
       _ ->
-        urls = Regex.scan(~r/https?:\/\/[^\s]+/, msg) |> List.flatten
+        urls = Regex.scan(~r/https?:\/\/[^\s]+/, infos.msg) |> List.flatten
         case urls do
           [] ->
             nil
           _ ->
-            uid = generate_request(infos, state)
+            infos = generate_request(infos, state)
             [url_pid] = Herd.launch(:hal_shepherd, [Url], __MODULE__)
-            req = {uid, self()}
-            Url.preview(url_pid, urls, req)
+            Url.preview(url_pid, urls, infos)
         end
     end
   end
 
   defp generate_request(infos, state) do
     uid = give_me_an_id(infos)
-    req = {uid, infos}
-    true = :ets.insert(state.uids, req)
-    uid
+    infos = %{infos | uid: uid, pid: self()}
+    true = :ets.insert(state.uids, {uid, infos})
+    infos
   end
 
-  defp answer(answers, chan, from, state) do
-    Enum.each(answers, fn(answer) ->
-      case chan do
-        nil -> IrcClient.msg state.client, :privmsg, from, answer # private_msg
-        _   -> IrcClient.msg state.client, :privmsg, chan, answer
+  defp answer_back(infos, state) do
+    Enum.each(infos.answers, fn(answer) ->
+      # take private_msg into account
+      case infos.chan do
+        nil -> IrcClient.msg state.client, :privmsg, infos.from, answer
+        _   -> IrcClient.msg state.client, :privmsg, infos.chan, answer
       end
     end)
   end

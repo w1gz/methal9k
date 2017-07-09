@@ -11,8 +11,8 @@ defmodule Hal.Plugin.Url do
     GenServer.start_link(__MODULE__, [], opts)
   end
 
-  def preview(pid, urls, req) do
-    GenServer.cast(pid, {:preview, urls, req})
+  def preview(pid, urls, infos) do
+    GenServer.cast(pid, {:preview, urls, infos})
   end
 
   def usage(pid) do
@@ -29,10 +29,11 @@ defmodule Hal.Plugin.Url do
     {:reply, answer, state}
   end
 
-  def handle_cast({:preview, urls, req}, state) do
-    {uid, from} = req
-    answers = Enum.map(urls, fn(url) -> get_title(url) end)
-    Tool.terminate(self(), from, uid, answers)
+  def handle_cast({:preview, urls, infos}, state) do
+    answers = urls
+    |> Enum.filter(&(&1 != ""))
+    |> Enum.map(&(get_title(&1)))
+    Tool.terminate(self(), infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 
@@ -46,10 +47,13 @@ defmodule Hal.Plugin.Url do
   end
 
   defp get_title(url) do
-    with {:ok, %HTTPoison.Response{body: body}} <- HTTPoison.get(url) do
-      html_title = Regex.scan(~r/<title>(.*)<\/title>/, body, capture: :all_but_first)
-      title = hd(List.flatten(html_title))
+    with {:ok, %HTTPoison.Response{body: body}} <- HTTPoison.get(url),
+         html_title <- Regex.scan(~r/<title>(.*)<\/title>/iu, body, capture: :all_but_first),
+           [title | _] <- List.flatten(html_title)
+      do
       HtmlEntities.decode(title)
+      else
+        [] -> "Without http(s), this is not an URL for me (#{url})"
     end
   end
 

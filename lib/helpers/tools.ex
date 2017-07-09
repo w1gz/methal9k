@@ -5,21 +5,8 @@ defmodule Hal.Tool do
 
   alias Hal.Shepherd, as: Herd
 
-  @doc """
-  Return and convert (if need be) its argument to a list.
-
-  `something` the data you want to ensure is a list.
-  """
-  def convert_to_list(something) do
-    case is_list(something) do
-      true -> something
-      false -> [something]
-    end
-  end
-
   def terminate(pid) do
-    pids = convert_to_list(pid)
-    Herd.stop(:hal_shepherd, pids)
+    Herd.stop(:hal_shepherd, [pid])
   end
 
   @doc """
@@ -31,45 +18,27 @@ defmodule Hal.Tool do
 
   `uid` the uid generated for this request.
 
-  `answer` formed by a couple of `uid` and `answers`, answers being a list of
-  string.
+  `answers` a list of string. If a string is sent, it will be wrapped inside
+  a list
   """
-  def terminate(pid, dest, uid, answer) do
-    {pids, answers} = {convert_to_list(pid), convert_to_list(answer)}
+  def terminate(pid, dest, uid, answer) when not is_list(answer) do
+    terminate(pid, dest, uid, [answer])
+  end
+
+  def terminate(pid, dest, uid, answers) do
     case answers do
-      [nil] -> nil
-      _ -> send dest, {:answer, {uid, answers}}
+      [nil]  -> nil
+      _      -> send dest, {:answer, uid, answers}
     end
-
-    Herd.stop(:hal_shepherd, pids)
+    Herd.stop(:hal_shepherd, [pid])
   end
 
-  @doc """
-  Kill a process and send its answer to the appropriate process.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `dest` the process to which the `answer` should be sent.
-
-  `chan` channel from which the request was initiated.
-
-  `from` the username from which the request was initiated.
-
-  `answer` formed by a tuple of `chan` , `from` and `answers`, answers being
-  a list of string.
-  """
-  def terminate(pid, dest, host, chan, from, answer) do
-    {pids, answers} = {convert_to_list(pid), convert_to_list(answer)}
-    send dest, {:answer, {host, chan, from, answers}}
-    Herd.stop(:hal_shepherd, pids)
-  end
-
-  # helper for the future cron that will clean ets/mnesia tables?
+  # # helper for the future cron that will clean ets/mnesia tables?
   # defp shift_time(time, unit \\ :days, timeshift \\ 7) do
-  #   case unit do
-  #     :days    -> Timex.shift(time, days: timeshift)
-  #     :hours   -> Timex.shift(time, hours: timeshift)
-  #     :minutes -> Timex.shift(time, minutes: timeshift)
+    #     case unit do
+    #       :days    -> Timex.shift(time, days: timeshift)
+    #       :hours   -> Timex.shift(time, hours: timeshift)
+    #       :minutes -> Timex.shift(time, minutes: timeshift)
   #     :seconds -> Timex.shift(time, seconds: timeshift)
   #   end
   # end

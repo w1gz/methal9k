@@ -31,12 +31,9 @@ defmodule Hal.Plugin.Time do
   `pid` the pid of the GenServer that will be called.
 
   `params` list of string containing either the city name or a timezone.
-
-  `uid` is the unique identifier for this request. Whereas `frompid` is the
-  process for which the answer will be sent.
   """
-  def current(pid, params, req) do
-    GenServer.cast(pid, {:get, params, req})
+  def current(pid, params, infos) do
+    GenServer.cast(pid, {:get, params, infos})
   end
 
   # Server callbacks
@@ -60,8 +57,8 @@ defmodule Hal.Plugin.Time do
     {:reply, answer, state}
   end
 
-  def handle_cast({:get, params, req}, state) do
-    current_time(params, req, state)
+  def handle_cast({:get, params, infos}, state) do
+    current_time(params, infos, state)
     {:noreply, state}
   end
 
@@ -75,7 +72,7 @@ defmodule Hal.Plugin.Time do
   end
 
   # Internal functions
-  defp current_time(params, {uid, frompid}, state) do
+  defp current_time(params, infos, state) do
     time_res = case params do
                  [] -> "Missing arguments"
                  _ ->
@@ -90,7 +87,7 @@ defmodule Hal.Plugin.Time do
                    {:ok, current} = Timex.format(dt, time_str, :strftime)
                    current
                end
-    Tool.terminate(self(), frompid, uid, time_res)
+    Tool.terminate(self(), infos.pid, infos.uid, time_res)
   end
 
   defp find_timezone(params, state) do
