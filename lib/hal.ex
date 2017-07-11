@@ -25,8 +25,8 @@ defmodule Hal do
       port: 6667,
       chans: ["#hal", "#test"],
       nick: "hal",
-      user: "hal",
       name: "hal",
+      user: "hal",
       pass: "",
       uids: %{}
   end
@@ -40,12 +40,7 @@ defmodule Hal do
             catch
               _ -> [%State{}]
             else
-              [yaml] -> case yaml do
-                          %{} -> throw("is #{credentials} a proper yaml file?")
-                          _ ->
-                            servers = yaml["servers"]
-                            parse_conf(servers)
-                        end
+              [yaml] -> parse_conf(yaml["servers"])
             end
 
     # launch Mnesia
@@ -68,8 +63,8 @@ defmodule Hal do
              port: s["port"],
              chans: s["chans"],
              nick: s["nick"],
-             user: s["user"],
              name: s["name"],
+             user: s["user"],
              pass: s["pass"]}
     end)
   end

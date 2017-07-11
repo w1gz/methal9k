@@ -4,6 +4,7 @@ defmodule Hal.Keeper do
   """
 
   use GenServer
+  require Logger
 
   # Client API
   def start_link(args, opts \\ []) do
@@ -17,13 +18,13 @@ defmodule Hal.Keeper do
   `pid` the pid of the GenServer that will be called
   """
   def give_me_your_table(pid, module) do
-    IO.puts("[ETS] asking #{inspect pid} for the table of #{inspect module}")
+    Logger.debug("[ETS] asking #{inspect pid} for the table of #{inspect module}")
     GenServer.call(pid, {:give_me_your_table, module})
   end
 
   # Server callbacks
   def init(_args) do
-    IO.puts "[NEW] Keeper #{inspect self()}"
+    Logger.debug("[NEW] Keeper #{inspect self()}")
     state = Map.new()
     {:ok, state}
   end
@@ -38,7 +39,7 @@ defmodule Hal.Keeper do
   end
 
   def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
-    IO.puts("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
+    Logger.debug("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
     backups = case state[module] do
                        nil -> [table_id]
                        [] -> [table_id]
@@ -49,7 +50,7 @@ defmodule Hal.Keeper do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 

@@ -5,6 +5,7 @@ defmodule Hal.IrcSupervisor do
   """
 
   use Supervisor
+  require Logger
   alias Hal.State, as: State
 
   def start_link(args, opts \\ []) do
@@ -12,7 +13,7 @@ defmodule Hal.IrcSupervisor do
   end
 
   def init(args) do
-    IO.puts "[NEW] IrcSupervisor #{inspect self()}"
+    Logger.debug("[NEW] IrcSupervisor #{inspect self()}")
 
     # generate one irchandler per host
     children = args

@@ -5,6 +5,7 @@ defmodule Hal.IrcHandler do
   """
 
   use GenServer
+  require Logger
   alias ExIrc.Client, as: IrcClient
   alias Hal.Dispatcher, as: Dispatcher
   alias Hal.Shepherd, as: Herd
@@ -62,7 +63,7 @@ defmodule Hal.IrcHandler do
 
   # Server callbacks
   def init(args) do
-    IO.puts "[NEW] IrcHandler #{inspect self()}"
+    Logger.debug("[NEW] IrcHandler #{inspect self()}")
     case IrcClient.is_logged_on? args.client do
       true ->
         IrcClient.add_handler args.client, self()
@@ -114,7 +115,7 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:connected, server, port}, state) do
-    IO.puts("[INFO] connecting to #{server}:#{port}")
+    Logger.info("connecting to #{server}:#{port}")
     IrcClient.logon state.client, state.pass, state.nick, state.user, state.name
     {:noreply, state}
   end
@@ -126,11 +127,11 @@ defmodule Hal.IrcHandler do
 
   # ExIrc.client.quit state.client, "I live, I die. I LIVE AGAIN!"
   def handle_info(:logged_in, state) do
+    chans = state.chans |> Enum.join(", ")
+    Logger.info("[#{state.host}] joining channels: #{chans}")
     Enum.each(state.chans, fn(chan) ->
       IrcClient.join state.client, chan
     end)
-    chans = state.chans |> Enum.join(", ")
-    IO.puts "[#{state.host}] joining channels: #{chans}"
     {:noreply, state}
   end
 
@@ -158,17 +159,17 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
-    IO.puts("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
+    Logger.debug("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
     state = %{state | uids: table_id}
     {:noreply, state}
   end
 
-  def handle_info(_msg, state) do
+  def handle_info(msg, state) do
     {:noreply, state}
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
