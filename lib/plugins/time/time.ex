@@ -4,6 +4,7 @@ defmodule Hal.Plugin.Time do
   """
 
   use GenServer
+  require Logger
   alias Timex.Timezone, as: Timezone
   alias Hal.Tool, as: Tool
 
@@ -38,7 +39,7 @@ defmodule Hal.Plugin.Time do
 
   # Server callbacks
   def init(_state) do
-    IO.puts("[NEW] PluginTime #{inspect self()}")
+    Logger.debug("[NEW] PluginTime #{inspect self()}")
     # read tokens
     gc_id = read_file("lib/plugins/time/geo.sec")
     tz_id = read_file("lib/plugins/time/tz.sec")
@@ -63,7 +64,7 @@ defmodule Hal.Plugin.Time do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -110,10 +111,10 @@ defmodule Hal.Plugin.Time do
   defp read_file(file) do
     tname = List.last(String.split(file, "/"))
     {id, msg} = case File.read(file) do
-                  {:ok, id} -> {id, "[INFO] #{tname} successfully read"}
-                  _         -> {"",  "[WARN] #{tname} not found"}
+                  {:ok, id} -> {id, "#{tname} successfully read"}
+                  _         -> {"",  "#{tname} not found"}
                 end
-    IO.puts(msg)
+    Logger.info(msg)
     id
   end
 

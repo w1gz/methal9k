@@ -4,6 +4,7 @@ defmodule Hal.Shepherd do
   """
 
   use GenServer
+  require Logger
   alias Hal.Keeper, as: Keeper
 
   # Client API
@@ -39,7 +40,7 @@ defmodule Hal.Shepherd do
 
   # Server callbacks
   def init(_args) do
-    IO.puts "[NEW] Shepherd #{inspect self()}"
+    Logger.debug("[NEW] Shepherd #{inspect self()}")
     processes = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
                   true -> nil   # we will receive this by ETS-TRANSFER later on
                   _ -> hal_pid = Process.whereis(:hal_keeper)
@@ -68,13 +69,13 @@ defmodule Hal.Shepherd do
   end
 
   def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
-    IO.puts("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
+    Logger.debug("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
     state = %{state | processes: table_id}
     {:noreply, state}
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
@@ -88,7 +89,7 @@ defmodule Hal.Shepherd do
     # case GenServer.stop(pid) do
     case module.terminate(pid, "Managed by Shepherd") do
       {:ok, _} -> nil
-      _ -> IO.puts("[ERR] Can't kill #{inspect module} #{inspect pid}")
+      _ -> Logger.info("Can't kill #{inspect module} #{inspect pid}")
     end
   end
 

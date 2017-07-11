@@ -4,6 +4,7 @@ defmodule Hal.Plugin.Url do
   """
 
   use GenServer
+  require Logger
   alias Hal.Tool, as: Tool
 
   # Client API
@@ -38,7 +39,7 @@ defmodule Hal.Plugin.Url do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 

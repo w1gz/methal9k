@@ -4,6 +4,7 @@ defmodule Hal.Plugin.Weather do
   """
 
   use GenServer
+  require Logger
   alias Hal.Tool, as: Tool
 
   defmodule Credentials do
@@ -70,7 +71,7 @@ defmodule Hal.Plugin.Weather do
 
   # Server callbacks
   def init(_state) do
-    IO.puts("[NEW] PluginWeather #{inspect self()}")
+    Logger.debug("[NEW] PluginWeather #{inspect self()}")
     filepath = "lib/plugins/weather/weather_token.sec"
     token = File.read(filepath)
     {raw_appid, _msg} = case token do
@@ -110,7 +111,7 @@ defmodule Hal.Plugin.Weather do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 

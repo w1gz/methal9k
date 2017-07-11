@@ -4,6 +4,7 @@ defmodule Hal.Plugin.Reminder do
   """
 
   use GenServer
+  require Logger
   alias Hal.Tool, as: Tool
 
   # Client API
@@ -39,7 +40,7 @@ defmodule Hal.Plugin.Reminder do
 
   # Server callbacks
   def init(args) do
-    IO.puts("[NEW] PluginReminder #{inspect self()}")
+    Logger.debug("[NEW] PluginReminder #{inspect self()}")
     :mnesia.create_table(Reminder, [
           attributes: [:to,
                        :host,
@@ -109,7 +110,7 @@ defmodule Hal.Plugin.Reminder do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 

@@ -4,6 +4,7 @@ defmodule Hal.Plugin.Quote do
   """
 
   use GenServer
+  require Logger
   alias Hal.Tool, as: Tool
 
   # Client API
@@ -44,7 +45,7 @@ defmodule Hal.Plugin.Quote do
 
   # Server callbacks
   def init(args) do
-    IO.puts("[NEW] PluginQuote #{inspect self()}")
+    Logger.debug("[NEW] PluginQuote #{inspect self()}")
     :mnesia.create_table(Quote, [
           attributes: [
             :id,
@@ -135,7 +136,7 @@ defmodule Hal.Plugin.Quote do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 

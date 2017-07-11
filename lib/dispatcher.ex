@@ -5,6 +5,7 @@ defmodule Hal.Dispatcher do
   """
 
   use GenServer
+  require Logger
   alias Hal.Plugin.Quote, as: Quote
   alias Hal.Plugin.Reminder, as: Reminder
   alias Hal.Plugin.Weather, as: Weather
@@ -30,7 +31,7 @@ defmodule Hal.Dispatcher do
 
   # Server callbacks
   def init(args) do
-    IO.puts("[NEW] Dispatcher #{inspect self()}")
+    Logger.debug("[NEW] Dispatcher #{inspect self()}")
     {:ok, args}
   end
 
@@ -40,7 +41,7 @@ defmodule Hal.Dispatcher do
   end
 
   def terminate(reason, _state) do
-    IO.puts("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
+    Logger.debug("[TERM] #{__MODULE__} #{inspect self()} -> #{inspect reason}")
     {:ok, reason}
   end
 
