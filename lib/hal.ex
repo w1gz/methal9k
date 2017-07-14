@@ -35,13 +35,7 @@ defmodule Hal do
     import Supervisor.Spec, warn: false
 
     # read config file or fallback to internal configuration
-    confs = try do
-              YamlElixir.read_all_from_file(credentials)
-            catch
-              _ -> [%State{}]
-            else
-              [yaml] -> parse_conf(yaml["servers"])
-            end
+    confs = parse_conf(credentials)
 
     # launch Mnesia
     :mnesia.create_schema([node()])
@@ -57,16 +51,23 @@ defmodule Hal do
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 
-  defp parse_conf(servers) do
-    Enum.map(servers, fn(s) ->
-      %State{host: s["host"],
-             port: s["port"],
-             chans: s["chans"],
-             nick: s["nick"],
-             name: s["name"],
-             user: s["user"],
-             pass: s["pass"]}
-    end)
+  defp parse_conf(credentials) do
+    try do
+      YamlElixir.read_all_from_file(credentials)
+    catch
+      _ -> [%State{}]
+    else
+      [yaml] ->
+        Enum.map(yaml["servers"], fn(s) ->
+          %State{host: s["host"],
+                 port: s["port"],
+                 chans: s["chans"],
+                 nick: s["nick"],
+                 name: s["name"],
+                 user: s["user"],
+                 pass: s["pass"]}
+        end)
+    end
   end
 
 end
