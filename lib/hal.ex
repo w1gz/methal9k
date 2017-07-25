@@ -42,6 +42,12 @@ defmodule Hal do
     :mnesia.create_schema([node()])
     :mnesia.start()
 
+    # TODO test rust NIF
+    defmodule HelloWorld do
+      use Rustler, otp_app: :hal, crate: "helloworld"
+      def add(_a, _b), do: throw :nif_not_loaded
+    end
+
     # static processes
     children = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
