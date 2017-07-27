@@ -11,7 +11,7 @@ defmodule Hal do
     connection. Those informations are:
     - `client` store the ExIrc client state
     - `host` irc host (chat.freenode.net)
-    - `port`  irc port (6667)
+    - `port`  irc port (6697)
     - `chans` irc channels (["#awesome-chan", "#pulp-fiction"]
     - `nick` login for the irc server
     - `pass` the associated password
@@ -21,8 +21,8 @@ defmodule Hal do
     """
 
     defstruct client: nil,
-      host: "172.17.0.2",
-      port: 6667,
+      host: "127.0.0.1",
+      port: 6697,
       chans: ["#hal", "#test"],
       nick: "hal",
       name: "hal",
@@ -47,7 +47,6 @@ defmodule Hal do
       worker(Hal.Shepherd, [[], [name: :hal_shepherd]]),
       supervisor(Hal.IrcSupervisor, [confs, []])
     ]
-
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 
