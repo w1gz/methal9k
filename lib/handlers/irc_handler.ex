@@ -69,8 +69,9 @@ defmodule Hal.IrcHandler do
         IrcClient.add_handler args.client, self()
         send self(), :logged_in
       _ ->
+        Logger.debug("Connecting to #{args.host}:#{args.port}")
         IrcClient.add_handler args.client, self()
-        IrcClient.connect! args.client, args.host, args.port
+        IrcClient.connect_ssl! args.client, args.host, args.port
     end
 
     uids = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
@@ -115,7 +116,7 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:connected, server, port}, state) do
-    Logger.info("connecting to #{server}:#{port}")
+    Logger.info("Registering #{state.user} (#{state.nick}) to #{server}:#{port}")
     IrcClient.logon state.client, state.pass, state.nick, state.user, state.name
     {:noreply, state}
   end
@@ -164,7 +165,7 @@ defmodule Hal.IrcHandler do
     {:noreply, state}
   end
 
-  def handle_info(msg, state) do
+  def handle_info(_msg, state) do
     {:noreply, state}
   end
 
