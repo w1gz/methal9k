@@ -103,7 +103,7 @@ defmodule Hal.Dispatcher do
   defp emojis(emoji, infos) do
     answer = case emoji do
                "flip"       -> "(╯°□°）╯︵ ┻━┻"
-               "shrug"      -> "¯\_(ツ)_/¯"
+               "shrug"      -> "¯\\_(ツ)_/¯"
                "disapprove" -> "ಠ_ಠ"
                "dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
              end
