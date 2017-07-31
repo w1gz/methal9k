@@ -156,17 +156,17 @@ defmodule Hal.Plugin.Weather do
       send infos.pid, {:answer, {infos.pid, answers}}
     else
       case weather_type do
-        :current         -> one_pound(raw, fun_current())
+        :current         -> pretty_print(raw, fun_current())
         :forecast_hourly -> format_forecast(raw, fun_hourly())
         :forecast_daily  -> format_forecast(raw, fun_daily())
       end
     end
   end
 
-  defp one_pound(fish, fun_format) do
-    desc = hd(fish["weather"])["description"]
-    one_unit = List.insert_at(fun_format.(fish), -1, desc)
-    [Enum.join(one_unit, " ~ ")]
+  defp pretty_print(raw, fun_format) do
+    desc = hd(raw["weather"])["description"]
+    one_unit = List.insert_at(fun_format.(raw), -1, desc)
+    Enum.join(one_unit, " ~ ")
   end
 
   defp format_forecast(raw, {fun_forecast, fun_filter}) do
@@ -178,7 +178,7 @@ defmodule Hal.Plugin.Weather do
     # format our weather
     answers = filtered
     |> Enum.take(4)
-    |> Enum.map(fn(fish) -> one_pound(fish, fun_forecast) end)
+    |> Enum.map(&(pretty_print(&1, fun_forecast)))
 
     # add the forecast header
     name = raw["city"]["name"]

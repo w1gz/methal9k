@@ -213,6 +213,10 @@ defmodule Hal.IrcHandler do
 
   defp answer_back(infos, state) do
     Enum.each(infos.answers, fn(answer) ->
+      answer = answer
+      |> String.trim                            # trim leading/trailing
+      |> String.split("\n") |> Enum.join(" - ") # merge lines
+
       # take private_msg into account
       case infos.chan do
         nil -> IrcClient.msg state.client, :privmsg, infos.from, answer
