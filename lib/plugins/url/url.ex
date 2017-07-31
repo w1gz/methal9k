@@ -49,12 +49,12 @@ defmodule Hal.Plugin.Url do
 
   defp get_title(url) do
     with {:ok, %HTTPoison.Response{body: body}} <- HTTPoison.get(url),
-         html_title <- Regex.scan(~r/<title>(.*)<\/title>/iu, body, capture: :all_but_first),
-           [title | _] <- List.flatten(html_title)
+         title <- Regex.scan(~r/<title>(.*)<\/title>/si, body, capture: :all_but_first),
+           [title | _] <- List.flatten(title)
       do
       HtmlEntities.decode(title)
       else
-        [] -> "Without http(s), this is not an URL for me (#{url})"
+        [] -> "Can't find the title"
     end
   end
 
