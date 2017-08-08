@@ -59,7 +59,7 @@ defmodule Hal.Plugin.Reminder do
   end
 
   def handle_cast({:set, {to, memo} = _reminder, infos}, state) do
-    time = Timex.now
+    {:ok, time} = Timex.format(Timex.now(), "%D, %R UTC", :strftime)
 
     # insert only if it does not exist yet
     query = fn ->

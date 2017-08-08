@@ -84,7 +84,7 @@ defmodule Hal.Plugin.Time do
                               end
                    city = Enum.join(params, " ")
                    dt = Timex.now(timezone)
-                   time_str = "%F - %T in #{city} (#{timezone}, %:z UTC)"
+                   time_str = "%T in #{city} (%D), #{timezone} %:z UTC"
                    {:ok, current} = Timex.format(dt, time_str, :strftime)
                    current
                end

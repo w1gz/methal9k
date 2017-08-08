@@ -49,7 +49,7 @@ defmodule Hal.Plugin.Quote do
     :mnesia.create_table(Quote, [
           attributes: [
             :id,
-            :date,
+            :time,
             :quote,
           ],
           type: :ordered_set,
@@ -69,10 +69,10 @@ defmodule Hal.Plugin.Quote do
            {:atomic, :"$end_of_table"} -> 0
            {:atomic, last} -> last + 1
          end
-    date = DateTime.utc_now()
+    {:ok, time} = Timex.format(Timex.now(), "%D (%R UTC)", :strftime)
 
     # actual query
-    query = fn -> :mnesia.write({Quote, id, date, msg_to_quote}) end
+    query = fn -> :mnesia.write({Quote, id, time, msg_to_quote}) end
     answer = case :mnesia.transaction(query) do
                {:atomic, :ok} -> "Quote #{id} registered."
                _ -> "Quote can't be registered"
@@ -102,7 +102,7 @@ defmodule Hal.Plugin.Quote do
         {:atomic, match} ->
           case Enum.at(match, 0) do
             nil -> aborted_msg
-            {_Q, idx, date, msg} -> "#{idx} - #{date} | #{msg}"
+            {_Q, idx, time, msg} -> "[#{idx}] #{time} #{msg}"
           end
         {:aborted, _reason} -> aborted_msg
       end
@@ -115,12 +115,12 @@ defmodule Hal.Plugin.Quote do
         {:atomic, match} ->
           # TODO do the filter in the mnesia request?
           quotes = Enum.filter(match,
-          fn({_Q, _id, _date, msg}) -> String.contains?(msg, keyword) end)
+          fn({_Q, _id, _time, msg}) -> String.contains?(msg, keyword) end)
           rand_seed = max(length(quotes), 1)
           r = :rand.uniform(rand_seed) - 1
           case Enum.at(quotes, r) do
             nil -> aborted_msg
-            {_Q, idx, date, msg} -> "#{idx} - #{date} | #{msg}"
+            {_Q, idx, time, msg} -> "[#{idx}] #{time} #{msg}"
           end
         {:aborted, _reason} -> aborted_msg
       end
