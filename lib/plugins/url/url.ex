@@ -48,13 +48,25 @@ defmodule Hal.Plugin.Url do
   end
 
   defp get_title(url) do
-    with {:ok, %HTTPoison.Response{body: body}} <- HTTPoison.get(url),
-         title <- Regex.scan(~r/<title>(.*)<\/title>/si, body, capture: :all_but_first),
-           [title | _] <- List.flatten(title)
-      do
+    request = fn(url) ->
+      res = HTTPoison.get(url, [], [follow_redirect: true, max_redirect: 15])
+      case res do
+        {:ok, %HTTPoison.Response{body: body}} -> body
+        _ -> ""
+      end
+    end
+
+    match? = fn(body) ->
+      Regex.scan(~r/<title>(.*)<\/title>/si, body, capture: :all_but_first)
+      |> List.flatten
+    end
+
+    with body <- request.(url),
+         match <- match?.(body),
+           [title | _] <- match do
       HtmlEntities.decode(title)
-      else
-        [] -> "Can't find the title"
+    else
+      [] -> "Can't find the title"
     end
   end
 
