@@ -57,7 +57,7 @@ defmodule Hal.Plugin.Url do
     end
 
     match? = fn(body) ->
-      Regex.scan(~r/<title>(.*)<\/title>/si, body, capture: :all_but_first)
+      Regex.scan(~r/<title>(.*?)<\/title>/si, body, capture: :all_but_first)
       |> List.flatten
     end
 
