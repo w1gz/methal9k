@@ -8,8 +8,8 @@ GenServer, Supervisor or even Hot code loading.
 # Installation
 
 Basic requirements
-- Erlang/OTP-19
-- Elixir 1.4
+- Erlang/OTP-19 or higher
+- Elixir 1.4 or higher
 
 
 # Running the bot

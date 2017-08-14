@@ -18,20 +18,18 @@ defmodule Methal9k.Mixfile do
 
   defp deps do
     [
-      {:exchalk, ">= 1.0.0"},
       {:exirc, ">= 1.0.0"},
       {:httpoison, ">= 0.11.0"},
       {:poison, ">= 3.1.0"},
-      {:uuid, ">= 1.1.6"},
       {:timex, ">= 3.1.11"},
       {:yaml_elixir, ">= 1.3.0"},
       {:html_entities, ">= 0.3.0"},
       {:poolboy, ">= 1.5.1"},
       {:distillery, ">= 1.5.1", runtime: false},
-      {:credo, ">= 0.6.1", only: :dev},
-      {:dogma, ">= 0.1.13", only: :dev},
       {:ex_doc, ">= 0.14.5", only: :dev},
-      {:excoveralls, ">= 0.6.2", only: :test}
+      {:excoveralls, ">= 0.6.2", only: [:dev, :test]},
+      {:credo, ">= 0.6.1", only: [:dev, :test]},
+      {:dogma, ">= 0.1.13", only: [:dev, :test]}
     ]
   end
 

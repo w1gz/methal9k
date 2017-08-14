@@ -1,12 +1,13 @@
 defmodule Hal.Plugin.Url do
   @moduledoc """
-
+  Tries to fetch the <title> tag of an HTML page
   """
 
   use GenServer
   require Logger
   alias Hal.Tool, as: Tool
   alias Hal.IrcHandler, as: Irc
+  @tool_url Application.get_env(:hal, :tool_get_url)
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -46,11 +47,7 @@ defmodule Hal.Plugin.Url do
   end
 
   defp get_title(url) do
-    data = case Tool.get(url) do
-             {:ok, resp} -> Tool.request(resp)
-             {:error, %HTTPoison.Error{id: _, reason: reason}} -> %{code: reason, body: ""}
-           end
-
+    data = @tool_url.get(url)
     # we always check for a title, even on status_code != 200
     reg = Regex.scan(~r{<title>(.*?)</title>}si, data[:body], capture: :all_but_first) |> List.flatten
     case reg do

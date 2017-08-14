@@ -12,18 +12,14 @@ defmodule Hal.Tool do
   end
 
   def terminate(infos, type \\ :msg) do
-    case infos.answers do
-      [nil] -> nil
-      _ ->
-        Logger.debug("Sending back #{inspect infos.answers}")
-        send infos.pid, {:answer, infos, type}
-    end
+    Logger.debug("Sending back #{inspect infos.answers}")
+    send infos.pid, {:answer, infos, type}
   end
 
   def read_token(token) do
     token_name = List.last(String.split(token, "/"))
     case File.read(token) do
-      {:ok, tok} -> Logger.info("#{token_name} token successfully read")
+      {:ok, tok} -> Logger.debug("#{token_name} token successfully read")
       String.trim(tok)
       _ -> Logger.warn("#{token_name} token not found")
         ""
@@ -49,9 +45,13 @@ defmodule Hal.Tool do
 
   def get(url) do
     Logger.debug("GET on #{url}")
-    HTTPoison.get(url, [],
+    res = HTTPoison.get(url, [],
       [stream_to: self(), async: :once,
        hackney: [follow_redirect: true, max_redirect: 15]])
+    case res do
+      {:ok, resp} -> request(resp)
+      {:error, %HTTPoison.Error{id: _, reason: reason}} -> %{code: reason, body: ""}
+    end
   end
 
   def request(resp) do request(resp, _output = %{body: ""}) end
@@ -87,5 +87,81 @@ defmodule Hal.Tool do
     {:ok, resp} = HTTPoison.stream_next(resp)
     request(resp, output)
   end
+
+end
+
+
+# in memory mock
+defmodule Hal.Tool.InMemory do
+
+  def get(_url) do
+    page = Enum.random([simple_one_line_title(),
+                        multiline_title(),
+                        greedy_title()]) # no_title()
+    %{code: 200, body: page}
+  end
+
+  defp simple_one_line_title do
+  """
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="utf-8">
+  <title>GitHub - w1gz/methal9k: Home of Meta Hal 9000 -- IRC bot &amp; more</title>
+  </head>
+  <body>
+  something
+  </body>
+  </html>
+  """
+  end
+
+  defp multiline_title do
+  """
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="utf-8">
+  <title>GitHub - w1gz/methal9k: Home
+  of Meta Hal 9000
+  --
+  IRC bot &amp; more</title>
+  </head>
+  <body>
+  something
+  </body>
+  </html>
+  """
+  end
+
+  defp greedy_title do
+  """
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <title>GitHub - w1gz/methal9k: Home of Meta Hal 9000 -- IRC bot &amp; more</title>
+  <meta charset="utf-8">
+  <title>GitHub - w1gz/methal9k: Home of Meta Hal 9000 -- IRC bot &amp; more</title>
+  </head>
+  <body>
+  <title>GitHub - w1gz/methal9k: Home of Meta Hal 9000 -- IRC bot &amp; more</title>
+  </body>
+  </html>
+  """
+  end
+
+  # defp no_title do
+  # """
+  # <!DOCTYPE html>
+  # <html lang="en">
+  # <head>
+  # <meta charset="utf-8">
+  # </head>
+  # <body>
+  # something
+  # </body>
+  # </html>
+  # """
+  # end
 
 end

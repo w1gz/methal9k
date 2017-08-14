@@ -20,10 +20,9 @@ defmodule Hal.Plugin.Quote do
     end
 
     action = case String.split(quoted_action) do
-               []      -> ""
+               [] -> ""
                [h | _] -> h
              end
-
     case action do
       "add" ->
         quote_msg = quick_trim.(quoted_action, action)
@@ -74,7 +73,7 @@ defmodule Hal.Plugin.Quote do
     query = fn -> :mnesia.write({Quote, id, time, msg_to_quote}) end
     answer = case :mnesia.transaction(query) do
                {:atomic, :ok} -> "Quote #{id} registered."
-               _ -> "Quote can't be registered"
+               _ -> "Quote can't be registered."
              end
     infos = %Irc.Infos{infos | answers: [answer]}
     Tool.terminate(infos)
@@ -82,14 +81,19 @@ defmodule Hal.Plugin.Quote do
   end
 
   def handle_cast({:del, infos, quote_id}, state) do
-    {id, _rem} = Integer.parse(quote_id)
-    query = fn -> :mnesia.delete({Quote, id}) end
-    answer = case :mnesia.transaction(query) do
-               {:atomic, :ok}      -> "Quote #{id} successfully deleted."
-               {:aborted, _reason} -> "Can't delete, something's wrong..."
-             end
-    infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos)
+    with {id, _rem} <- Integer.parse(quote_id) do
+      query = fn -> :mnesia.delete({Quote, id}) end
+      answer = case :mnesia.transaction(query) do
+                 {:atomic, :ok}      -> "Quote #{id} successfully deleted."
+                 {:aborted, _reason} -> "Can't delete, something's very wrong..."
+               end
+      infos = %Irc.Infos{infos | answers: [answer]}
+      Tool.terminate(infos)
+    else
+      _ ->
+        infos = %Irc.Infos{infos | answers: ["Can't delete, where's the ID ?"]}
+      Tool.terminate(infos)
+    end
     {:noreply, state}
   end
 

@@ -12,7 +12,7 @@ defmodule Hal do
     connection. Those informations are:
     - `client` store the ExIrc client state
     - `host` irc server to connect to
-    - `port`  irc server port
+    - `port`  irc port
     - `chans` irc channels
     - `nick` login for the irc server
     - `pass` the associated password

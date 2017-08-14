@@ -59,7 +59,7 @@ defmodule Hal.Plugin.Time do
 
   defp current_time(params, infos, state) do
     answer = case params do
-               [] -> "Missing arguments"
+               [] -> "Missing arguments."
                _ ->
                  tz = hd(params)
                  timezone = case Timezone.exists?(tz) do
