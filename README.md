@@ -7,7 +7,7 @@ GenServer, Supervisor or even Hot code loading.
 
 # Installation
 
-Basic requirements:
+Basic requirements
 - Erlang/OTP-19
 - Elixir 1.4
 
@@ -25,16 +25,16 @@ mix run --no-halt
 
 ## Docker
 
-Missing an IRC server and/or an Erlang/Elixir installation?
+Missing an IRC server for testing?
 
 Build and run the dedicated container
 ``` bash
-docker build -t methal9k .
-docker run --rm -it methal9k
+docker build -t methal9k-ircd .
+docker run --rm -it -p 6697:6697 methal9k-ircd
 ```
 
-You can then connect to the local IRC server:
- - port: 6667
+You can then connect to the local IRC server (SSL only)
+ - port: 6697
  - IP: your container's IP ([Can't find the container IP address?](#dockertips))
 
 
@@ -48,7 +48,7 @@ Docker daemon.
 
 Or use the power of `awk` to deliver it to you
 ``` bash
-cid=$(docker ps | awk '$2 == "methal9k" {print $1}')
+cid=$(docker ps | awk '$2 == "methal9k-ircd" {print $1}')
 docker inspect $cid | awk -F '"' '$2 == "IPAddress" {print $4; exit}'
 ```
 
