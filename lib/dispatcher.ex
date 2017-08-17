@@ -67,6 +67,7 @@ defmodule Hal.Dispatcher do
       ".shrug"      -> emojis(cmd, infos)
       ".disapprove" -> emojis(cmd, infos)
       ".dealwithit" -> emojis(cmd, infos)
+      ".bow"        -> emojis(cmd, infos)
       _             -> nil
     end
   end
@@ -110,6 +111,7 @@ defmodule Hal.Dispatcher do
                "shrug"      -> "¯\\_(ツ)_/¯"
                "disapprove" -> "ಠ_ಠ"
                "dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
+               "bow"        -> "¬¬"
              end
     Tool.terminate(self(), infos.pid, infos.uid, answer)
   end
