@@ -61,10 +61,12 @@ defmodule Hal.Dispatcher do
       ".quote"      -> manage_quote(rm_cmd(infos.msg, cmd), infos)
       ".chan"       -> highlight_channel(infos)
       ".url"        -> url_preview(rm_cmd(infos.msg, cmd), infos)
-      ".flip"       -> emojis("flip", infos)
-      ".shrug"      -> emojis("shrug", infos)
-      ".disapprove" -> emojis("disapprove", infos)
-      ".dealwithit" -> emojis("dealwithit", infos)
+      ".wtf"        -> emojis(cmd, infos)
+      ".yay"        -> emojis(cmd, infos)
+      ".flip"       -> emojis(cmd, infos)
+      ".shrug"      -> emojis(cmd, infos)
+      ".disapprove" -> emojis(cmd, infos)
+      ".dealwithit" -> emojis(cmd, infos)
       _             -> nil
     end
   end
@@ -101,7 +103,9 @@ defmodule Hal.Dispatcher do
   end
 
   defp emojis(emoji, infos) do
-    answer = case emoji do
+    answer = case String.slice(emoji, 1..-1) do
+               "wtf"        -> "(⊙＿⊙')"
+               "yay"        -> "\\( ﾟヮﾟ)/"
                "flip"       -> "(╯°□°）╯︵ ┻━┻"
                "shrug"      -> "¯\\_(ツ)_/¯"
                "disapprove" -> "ಠ_ಠ"
