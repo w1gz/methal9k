@@ -3,6 +3,7 @@ defmodule Hal.Tool do
   Helpers/Tools for commonly used functions
   """
 
+  require Logger
   alias Hal.Shepherd, as: Herd
 
   def terminate(pid) do
@@ -34,13 +35,54 @@ defmodule Hal.Tool do
   end
 
   # # helper for the future cron that will clean ets/mnesia tables?
-  # defp shift_time(time, unit \\ :days, timeshift \\ 7) do
-    #     case unit do
-    #       :days    -> Timex.shift(time, days: timeshift)
-    #       :hours   -> Timex.shift(time, hours: timeshift)
-    #       :minutes -> Timex.shift(time, minutes: timeshift)
+  # def shift_time(time, unit \\ :days, timeshift \\ 7) do
+  #   case unit do
+  #     :days    -> Timex.shift(time, days: timeshift)
+  #     :hours   -> Timex.shift(time, hours: timeshift)
+  #     :minutes -> Timex.shift(time, minutes: timeshift)
   #     :seconds -> Timex.shift(time, seconds: timeshift)
   #   end
   # end
+
+  def get(url) do
+    Logger.debug("GET on #{url}")
+    HTTPoison.get(url, [],
+      [stream_to: self(), async: :once,
+       hackney: [follow_redirect: true, max_redirect: 15]])
+  end
+
+  def request(resp) do request(resp, _output = %{body: ""}) end
+  def request(resp, output) do
+    receive do
+      %HTTPoison.AsyncStatus{code: code} ->
+        Logger.debug("AsyncStatus #{inspect code}")
+        put_and_next(output, :code, code, resp)
+      %HTTPoison.AsyncHeaders{headers: headers} ->
+        Logger.debug("AsyncHeaders #{inspect headers}")
+        put_and_next(output, :headers, headers, resp)
+      %HTTPoison.AsyncRedirect{to: to} ->
+        Logger.debug("AsyncRedirect #{to}")
+        {:ok, resp} = get(to)
+        put_and_next(output, :to, to, resp)
+      %HTTPoison.AsyncChunk{chunk: chunk} ->
+        body = Map.get(output, :body) <> chunk
+        output = Map.put(output, :body, body)
+        case String.length(body) >= 100000 do # TODO find a better way
+          true ->
+            :hackney.stop_async(resp)
+            output
+          false ->
+            {:ok, resp} = HTTPoison.stream_next(resp)
+            request(resp, output)
+        end
+      %HTTPoison.AsyncEnd{} -> output
+    end
+  end
+
+  defp put_and_next(map, key, value, resp) do
+    output = Map.put_new(map, key, value)
+    {:ok, resp} = HTTPoison.stream_next(resp)
+    request(resp, output)
+  end
 
 end

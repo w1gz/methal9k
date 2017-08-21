@@ -48,25 +48,22 @@ defmodule Hal.Plugin.Url do
   end
 
   defp get_title(url) do
-    request = fn(url) ->
-      res = HTTPoison.get(url, [], [follow_redirect: true, max_redirect: 15])
-      case res do
-        {:ok, %HTTPoison.Response{body: body}} -> body
-        _ -> ""
-      end
-    end
+    data = case Tool.get(url) do
+             {:ok, resp} -> Tool.request(resp)
+             {:error, %HTTPoison.Error{id: _, reason: reason}} -> %{code: reason, body: ""}
+           end
 
-    match? = fn(body) ->
-      Regex.scan(~r/<title>(.*?)<\/title>/si, body, capture: :all_but_first)
-      |> List.flatten
-    end
+    # we always check for a title, even on status_code != 200
+    reg = Regex.scan(~r/<title>(.*?)<\/title>/si, data[:body], capture: :all_but_first) |> List.flatten
+    title = case reg do
+              [title | _] -> HtmlEntities.decode(title)
+              _ -> "Can't find the title"
+            end
 
-    with body <- request.(url),
-         match <- match?.(body),
-           [title | _] <- match do
-      HtmlEntities.decode(title)
-    else
-      [] -> "Can't find the title"
+    # pretty print for the error code
+    case data[:code] do
+      nil -> title
+      _ -> "#{data[:code]} | #{title}"
     end
   end
 
