@@ -61,14 +61,7 @@ defmodule Hal.Dispatcher do
       ".quote"      -> manage_quote(rm_cmd(infos.msg, cmd), infos)
       ".chan"       -> highlight_channel(infos)
       ".url"        -> url_preview(rm_cmd(infos.msg, cmd), infos)
-      ".wtf"        -> emojis(cmd, infos)
-      ".yay"        -> emojis(cmd, infos)
-      ".flip"       -> emojis(cmd, infos)
-      ".shrug"      -> emojis(cmd, infos)
-      ".disapprove" -> emojis(cmd, infos)
-      ".dealwithit" -> emojis(cmd, infos)
-      ".bow"        -> emojis(cmd, infos)
-      _             -> nil
+      _             -> emojis(cmd, infos)
     end
   end
 
@@ -104,14 +97,16 @@ defmodule Hal.Dispatcher do
   end
 
   defp emojis(emoji, infos) do
-    answer = case String.slice(emoji, 1..-1) do
-               "wtf"        -> "(⊙＿⊙')"
-               "yay"        -> "\\( ﾟヮﾟ)/"
-               "flip"       -> "(╯°□°）╯︵ ┻━┻"
-               "shrug"      -> "¯\\_(ツ)_/¯"
-               "disapprove" -> "ಠ_ಠ"
-               "dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
-               "bow"        -> "¬¬"
+    answer = case emoji do
+               ".wtf"        -> "(⊙＿⊙')"
+               ".yay"        -> "\\( ﾟヮﾟ)/"
+               ".tableflip"  -> "(╯°□°）╯︵ ┻━┻"
+               ".flip"       -> "┬──┬◡ﾉ(° -°ﾉ)"
+               ".shrug"      -> "¯\\_(ツ)_/¯"
+               ".disapprove" -> "ಠ_ಠ"
+               ".dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
+               ".bow"        -> "¬¬"
+               _             -> nil
              end
     Tool.terminate(self(), infos.pid, infos.uid, answer)
   end
