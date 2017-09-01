@@ -55,15 +55,9 @@ defmodule Hal.Plugin.Url do
 
     # we always check for a title, even on status_code != 200
     reg = Regex.scan(~r/<title>(.*?)<\/title>/si, data[:body], capture: :all_but_first) |> List.flatten
-    title = case reg do
-              [title | _] -> HtmlEntities.decode(title)
-              _ -> "Can't find the title"
-            end
-
-    # pretty print for the error code
-    case data[:code] do
-      nil -> title
-      _ -> "#{data[:code]} | #{title}"
+    case reg do
+      [title | _] -> HtmlEntities.decode(title)
+      _ -> nil
     end
   end
 

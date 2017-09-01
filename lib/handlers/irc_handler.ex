@@ -100,11 +100,8 @@ defmodule Hal.IrcHandler do
     {:reply, status, state}
   end
 
-  def handle_info({:answer, _uid, nil}, state) do
-    {:noreply, state}
-  end
-
   def handle_info({:answer, uid, answers}, state) do
+    answers = Enum.filter(answers, fn(x) -> x != nil end)
     case :ets.lookup(state.uids, uid) do
       [] -> :ok
       [{_uid, infos}] ->
