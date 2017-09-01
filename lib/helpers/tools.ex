@@ -4,10 +4,11 @@ defmodule Hal.Tool do
   """
 
   require Logger
-  alias Hal.Shepherd, as: Herd
 
-  def terminate(pid) do
-    Herd.stop(:hal_shepherd, [pid])
+  def poolboy_conf(plugin, size \\ 10, overflow \\ 5) do
+    [{:name, {:local, plugin}},
+     {:worker_module, plugin},
+     {:size, size}, {:max_overflow, overflow}]
   end
 
   @doc """
@@ -22,16 +23,34 @@ defmodule Hal.Tool do
   `answers` a list of string. If a string is sent, it will be wrapped inside
   a list
   """
-  def terminate(pid, dest, uid, answer) when not is_list(answer) do
-    terminate(pid, dest, uid, [answer])
+  def terminate(dest, uid, answer) when not is_list(answer) do
+    terminate(dest, uid, [answer])
   end
 
-  def terminate(pid, dest, uid, answers) do
+  def terminate(dest, uid, answers) do
     case answers do
       [nil]  -> nil
-      _      -> send dest, {:answer, uid, answers}
+      _      ->
+        Logger.debug("Sending back #{inspect answers}")
+        send dest, {:answer, uid, answers}
     end
-    Herd.stop(:hal_shepherd, [pid])
+  end
+
+  def read_token(token) do
+    token_name = List.last(String.split(token, "/"))
+    case File.read(token) do
+      {:ok, tok} -> Logger.info("#{token_name} token successfully read")
+      String.trim(tok)
+      _ -> Logger.warn("#{token_name} token not found")
+        ""
+    end
+  end
+
+  def quick_request(url) do
+    with {:ok, res} <- HTTPoison.get(url, []),
+         %HTTPoison.Response{body: body} <- res do
+      Poison.decode!(body)
+    end
   end
 
   # # helper for the future cron that will clean ets/mnesia tables?

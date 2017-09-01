@@ -20,7 +20,8 @@ defmodule Hal.IrcSupervisor do
     |> Enum.map(fn(arg) ->
       {:ok, client} = ExIrc.start_client!
       state = %State{arg | client: client}
-      worker(Hal.IrcHandler, [state], id: String.to_atom(arg.host))
+      hostname = String.to_atom(arg.host)
+      worker(Hal.IrcHandler, [state], [id: hostname])
     end)
     |> List.flatten
 

@@ -77,7 +77,7 @@ defmodule Hal.Plugin.Quote do
                {:atomic, :ok} -> "Quote #{id} registered."
                _ -> "Quote can't be registered"
              end
-    Tool.terminate(self(), infos.pid, infos.uid, answer)
+    Tool.terminate(infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 
@@ -88,7 +88,7 @@ defmodule Hal.Plugin.Quote do
                {:atomic, :ok}      -> "Quote #{id} successfully deleted."
                {:aborted, _reason} -> "Can't delete, something's wrong..."
              end
-    Tool.terminate(self(), infos.pid, infos.uid, answer)
+    Tool.terminate(infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 
@@ -131,7 +131,7 @@ defmodule Hal.Plugin.Quote do
                {id, _rem} -> query_with_integer.(id)
                :error     -> query_with_keyword.(quote_or_id)
              end
-    Tool.terminate(self(), infos.pid, infos.uid, answer)
+    Tool.terminate(infos.pid, infos.uid, answer)
     {:noreply, state}
   end
 

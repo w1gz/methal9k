@@ -11,7 +11,6 @@ defmodule Hal.Dispatcher do
   alias Hal.Plugin.Weather, as: Weather
   alias Hal.Plugin.Time, as: Time
   alias Hal.Plugin.Url, as: Url
-  alias Hal.Shepherd, as: Herd
   alias Hal.Tool, as: Tool
 
   # Client API
@@ -82,10 +81,9 @@ defmodule Hal.Dispatcher do
 
     # spawn plugins, get their usage and shut them down
     plugins_answers = Enum.map(plugins, fn(module) ->
-      [pid] = Herd.launch(:hal_shepherd, [module])
-      answer = module.usage(pid)
-      Tool.terminate(pid)
-      answer
+      :poolboy.transaction(module, fn(pid) ->
+        module.usage(pid)
+      end)
     end)
 
     orphans = [
@@ -93,7 +91,7 @@ defmodule Hal.Dispatcher do
     ]
 
     answers = plugins_answers ++ orphans
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
   end
 
   defp emojis(emoji, infos) do
@@ -108,7 +106,7 @@ defmodule Hal.Dispatcher do
                ".bow"        -> "¬¬"
                _             -> nil
              end
-    Tool.terminate(self(), infos.pid, infos.uid, answer)
+    Tool.terminate(infos.pid, infos.uid, answer)
   end
 
   defp highlight_channel(infos) do
@@ -116,7 +114,7 @@ defmodule Hal.Dispatcher do
                 nil -> ["This is not a channel"]
                 _   -> retrieve_users(infos.pid, infos.from, infos.chan)
               end
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
   end
 
   defp retrieve_users(frompid, from, chan) do
@@ -133,29 +131,34 @@ defmodule Hal.Dispatcher do
   end
 
   defp time(params, infos) do
-    [time_pid] = Herd.launch(:hal_shepherd, [Time], __MODULE__, self())
-    Time.current(time_pid, params, infos)
+    :poolboy.transaction(Time, fn(pid) ->
+      Time.current(pid, params, infos)
+    end)
   end
 
   defp weather(params, infos) do
     case params do
-      [] -> Tool.terminate(self(), infos.pid, infos.uid, "Missing arguments")
+      [] -> Tool.terminate(infos.pid, infos.uid, "Missing arguments")
       ["hourly" | arg2] ->
-        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.hourly(weather_id, arg2, infos)
+        :poolboy.transaction(Weather, fn(pid) ->
+          Weather.hourly(pid, arg2, infos)
+        end)
       ["daily" | arg2] ->
-        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.daily(weather_id, arg2, infos)
+        :poolboy.transaction(Weather, fn(pid) ->
+          Weather.daily(pid, arg2, infos)
+        end)
       [_city | _] ->
-        [weather_id] = Herd.launch(:hal_shepherd, [Weather], __MODULE__, self())
-        Weather.current(weather_id, params, infos)
-      _ -> Tool.terminate(self(), infos.pid, infos.uid, "Nope")
+        :poolboy.transaction(Weather, fn(pid) ->
+          Weather.current(pid, params, infos)
+        end)
+      _ -> Tool.terminate(infos.pid, infos.uid, "Nope")
     end
   end
 
   defp get_reminder(infos) do
-    [reminder_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
-    Reminder.get(reminder_id, infos)
+    :poolboy.transaction(Reminder, fn(pid) ->
+      Reminder.get(pid, infos)
+    end)
   end
 
   defp set_reminder(params, infos) do
@@ -164,10 +167,11 @@ defmodule Hal.Dispatcher do
            false <- reminder_chan_has_user(user, infos) do
       # match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
       # reminder = {user, match["memo"]}
-      [remind_id] = Herd.launch(:hal_shepherd, [Reminder], __MODULE__, self())
-      Reminder.set(remind_id, {user, memo}, infos)
+      :poolboy.transaction(Reminder, fn(pid) ->
+        Reminder.set(pid, {user, memo}, infos)
+      end)
     else
-      {:error, msg} -> Tool.terminate(self(), infos.pid, infos.uid, msg)
+      {:error, msg} -> Tool.terminate(infos.pid, infos.uid, msg)
     end
   end
 
@@ -193,14 +197,16 @@ defmodule Hal.Dispatcher do
   end
 
   defp manage_quote(quoted_action, infos) do
-    [quote_id] = Herd.launch(:hal_shepherd, [Quote], __MODULE__, self())
-    Quote.manage_quote(quote_id, quoted_action, infos)
+    :poolboy.transaction(Quote, fn(pid) ->
+      Quote.manage_quote(pid, quoted_action, infos)
+    end)
   end
 
   # this is only called by the .url command, not the autoparsing one
   defp url_preview(url, infos) do
-    [url_id] = Herd.launch(:hal_shepherd, [Url], __MODULE__, self())
-    Url.preview(url_id, [url], infos)
+    :poolboy.transaction(Url, fn(pid) ->
+      Url.preview(pid, [url], infos)
+    end)
   end
 
 end

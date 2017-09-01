@@ -8,7 +8,6 @@ defmodule Hal.IrcHandler do
   require Logger
   alias ExIrc.Client, as: IrcClient
   alias Hal.Dispatcher, as: Dispatcher
-  alias Hal.Shepherd, as: Herd
   alias Hal.Keeper, as: Keeper
   alias Hal.Plugin.Url, as: Url
 
@@ -186,8 +185,9 @@ defmodule Hal.IrcHandler do
     case String.at(infos.msg, 0) do
       "." ->
         infos = generate_request(infos, state)
-        [dispatcher_pid] = Herd.launch(:hal_shepherd, [Dispatcher], __MODULE__)
-        Dispatcher.command(dispatcher_pid, infos)
+        :poolboy.transaction(Dispatcher, fn(pid) ->
+          Dispatcher.command(pid, infos)
+        end)
       _ ->
         urls = Regex.scan(~r/https?:\/\/[^\s]+/, infos.msg) |> List.flatten
         case urls do
@@ -195,8 +195,9 @@ defmodule Hal.IrcHandler do
             nil
           _ ->
             infos = generate_request(infos, state)
-            [url_pid] = Herd.launch(:hal_shepherd, [Url], __MODULE__)
-            Url.preview(url_pid, urls, infos)
+            :poolboy.transaction(Url, fn(pid) ->
+              Url.preview(pid, urls, infos)
+            end)
         end
     end
   end

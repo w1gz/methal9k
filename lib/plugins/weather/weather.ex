@@ -72,18 +72,9 @@ defmodule Hal.Plugin.Weather do
   # Server callbacks
   def init(_state) do
     Logger.debug("[NEW] PluginWeather #{inspect self()}")
-    filepath = "lib/plugins/weather/weather_token.sec"
-    token = File.read(filepath)
-    {raw_appid, _msg} = case token do
-                         {:ok, appid} ->
-                           {appid, "[INFO] weather token successfully read"}
-                         _ ->
-                           {"", "[WARN] weather token not found"}
-                       end
-
-    # construct our initial state
-    appid = String.trim(raw_appid)
-    state = %Credentials{appid: appid}
+    filename = "lib/plugins/weather/weather_token.sec"
+    weather_id = Tool.read_token(filename)
+    state = %Credentials{appid: weather_id}
     {:ok, state}
   end
 
@@ -123,7 +114,7 @@ defmodule Hal.Plugin.Weather do
   defp get_weather({type, params, infos}, appid, url) do
     json = send_request(params, infos, appid, url)
     answers = format_for_human(json, infos, type)
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
   end
 
   defp send_request(params, infos, appid, url) do

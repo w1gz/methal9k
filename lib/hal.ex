@@ -4,6 +4,7 @@ defmodule Hal do
   """
 
   use Application
+  alias Hal.Tool, as: Tool
 
   defmodule State do
     @moduledoc """
@@ -44,10 +45,11 @@ defmodule Hal do
     # static processes
     children = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
-      worker(Hal.Shepherd, [[], [name: :hal_shepherd]]),
-      supervisor(Hal.IrcSupervisor, [confs, []])
+      supervisor(Hal.IrcSupervisor, [confs, [name: :hal_irc_supervisor]]),
+      supervisor(Hal.PluginSupervisor, [[], [name: :hal_plugin_supervisor]]),
+      :poolboy.child_spec(:p_dispatcher, Tool.poolboy_conf(Hal.Dispatcher, 20, 10))
     ]
-    Supervisor.start_link(children, strategy: :one_for_one)
+    Supervisor.start_link(children, [name: :hal, strategy: :one_for_one])
   end
 
   defp parse_conf(credentials) do

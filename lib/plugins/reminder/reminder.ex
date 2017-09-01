@@ -79,7 +79,7 @@ defmodule Hal.Plugin.Reminder do
                {:atomic, nil} -> "Reminder already set."
              end
 
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 
@@ -105,7 +105,7 @@ defmodule Hal.Plugin.Reminder do
                   end)
               end
 
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 

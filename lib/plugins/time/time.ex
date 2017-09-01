@@ -40,16 +40,9 @@ defmodule Hal.Plugin.Time do
   # Server callbacks
   def init(_state) do
     Logger.debug("[NEW] PluginTime #{inspect self()}")
-    # read tokens
-    gc_id = read_file("lib/plugins/time/geo.sec")
-    tz_id = read_file("lib/plugins/time/tz.sec")
-
-    # construct our initial state
-    state = %Credentials{
-      gc_id: String.trim(gc_id),
-      tz_id: String.trim(tz_id)
-    }
-
+    geo_id = Tool.read_token("lib/plugins/time/geo.sec")
+    tz_id = Tool.read_token("lib/plugins/time/tz.sec")
+    state = %Credentials{gc_id: geo_id, tz_id: tz_id}
     {:ok, state}
   end
 
@@ -88,7 +81,7 @@ defmodule Hal.Plugin.Time do
                    {:ok, current} = Timex.format(dt, time_str, :strftime)
                    current
                end
-    Tool.terminate(self(), infos.pid, infos.uid, time_res)
+    Tool.terminate(infos.pid, infos.uid, time_res)
   end
 
   defp find_timezone(params, state) do
@@ -96,7 +89,7 @@ defmodule Hal.Plugin.Time do
     address = Enum.join(params, "+")
     gc_url = "https://maps.googleapis.com/maps/api/geocode/json?address=" <>
       "#{address}&key=#{state.gc_id}"
-    gc_json = quick_request(gc_url)
+    gc_json = Tool.quick_request(gc_url)
     coord = hd(gc_json["results"])["geometry"]["location"]
     {lat, lng} = {coord["lat"], coord["lng"]}
 
@@ -104,25 +97,8 @@ defmodule Hal.Plugin.Time do
     {_, sec, _} = :erlang.timestamp()
     tz_url = "https://maps.googleapis.com/maps/api/timezone/json?location=" <>
       "#{lat},#{lng}&timestamp=#{sec}&key=#{state.tz_id}"
-    tz_json = quick_request(tz_url)
+    tz_json = Tool.quick_request(tz_url)
     tz_json["timeZoneId"]
-  end
-
-  defp read_file(file) do
-    tname = List.last(String.split(file, "/"))
-    {id, msg} = case File.read(file) do
-                  {:ok, id} -> {id, "#{tname} successfully read"}
-                  _         -> {"",  "#{tname} not found"}
-                end
-    Logger.info(msg)
-    id
-  end
-
-  defp quick_request(url) do
-    with {:ok, res} <- HTTPoison.get(url, []),
-         %HTTPoison.Response{body: body} <- res do
-      Poison.decode!(body)
-    end
   end
 
 end

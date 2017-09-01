@@ -34,7 +34,7 @@ defmodule Hal.Plugin.Url do
     answers = urls
     |> Enum.filter(&(&1 != ""))
     |> Enum.map(&(get_title(&1)))
-    Tool.terminate(self(), infos.pid, infos.uid, answers)
+    Tool.terminate(infos.pid, infos.uid, answers)
     {:noreply, state}
   end
 
