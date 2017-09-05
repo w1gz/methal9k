@@ -104,6 +104,10 @@ defmodule Hal.Dispatcher do
                ".disapprove" -> "ಠ_ಠ"
                ".dealwithit" -> "(•_•) ( •_•)>⌐■-■ (⌐■_■)"
                ".bow"        -> "¬¬"
+               ".gwaby"      -> "^(;,;)^"
+               ".doit"       -> "(☞ﾟヮﾟ)☞"
+               ".doit2"      -> "☜(ﾟヮﾟ☜)"
+               ".dunno"      -> "┐('～`；)┌"
                _             -> nil
              end
     Tool.terminate(infos.pid, infos.uid, answer)
