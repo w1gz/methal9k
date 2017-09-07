@@ -11,16 +11,12 @@ defmodule Hal.Tool do
      {:size, size}, {:max_overflow, overflow}]
   end
 
-  def terminate(dest, uid, answer) when not is_list(answer) do
-    terminate(dest, uid, [answer])
-  end
-
-  def terminate(dest, uid, answers) do
-    case answers do
-      [nil]  -> nil
-      _      ->
-        Logger.debug("Sending back #{inspect answers}")
-        send dest, {:answer, uid, answers}
+  def terminate(infos) do
+    case infos.answers do
+      [nil] -> nil
+      _ ->
+        Logger.debug("Sending back #{inspect infos.answers}")
+        send infos.pid, {:answer, infos}
     end
   end
 
@@ -41,15 +37,15 @@ defmodule Hal.Tool do
     end
   end
 
-  # # helper for the future cron that will clean ets/mnesia tables?
-  # def shift_time(time, unit \\ :days, timeshift \\ 7) do
-  #   case unit do
-  #     :days    -> Timex.shift(time, days: timeshift)
-  #     :hours   -> Timex.shift(time, hours: timeshift)
-  #     :minutes -> Timex.shift(time, minutes: timeshift)
-  #     :seconds -> Timex.shift(time, seconds: timeshift)
-  #   end
-  # end
+  # helper for the future cron that will clean ets/mnesia tables?
+  def shift_time(time, unit \\ :days, timeshift \\ 7) do
+    case unit do
+      :days    -> Timex.shift(time, days: timeshift)
+      :hours   -> Timex.shift(time, hours: timeshift)
+      :minutes -> Timex.shift(time, minutes: timeshift)
+      :seconds -> Timex.shift(time, seconds: timeshift)
+    end
+  end
 
   def get(url) do
     Logger.debug("GET on #{url}")

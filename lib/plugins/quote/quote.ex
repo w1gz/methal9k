@@ -6,6 +6,7 @@ defmodule Hal.Plugin.Quote do
   use GenServer
   require Logger
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -75,7 +76,8 @@ defmodule Hal.Plugin.Quote do
                {:atomic, :ok} -> "Quote #{id} registered."
                _ -> "Quote can't be registered"
              end
-    Tool.terminate(infos.pid, infos.uid, answer)
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 
@@ -86,7 +88,8 @@ defmodule Hal.Plugin.Quote do
                {:atomic, :ok}      -> "Quote #{id} successfully deleted."
                {:aborted, _reason} -> "Can't delete, something's wrong..."
              end
-    Tool.terminate(infos.pid, infos.uid, answer)
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 
@@ -129,7 +132,8 @@ defmodule Hal.Plugin.Quote do
                {id, _rem} -> query_with_integer.(id)
                :error     -> query_with_keyword.(quote_or_id)
              end
-    Tool.terminate(infos.pid, infos.uid, answer)
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 

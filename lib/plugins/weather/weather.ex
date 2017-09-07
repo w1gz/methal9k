@@ -6,6 +6,7 @@ defmodule Hal.Plugin.Weather do
   use GenServer
   require Logger
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   defmodule Credentials do
     @moduledoc """
@@ -104,7 +105,8 @@ defmodule Hal.Plugin.Weather do
   defp get_weather({type, params, infos}, appid, url) do
     json = send_request(params, infos, appid, url)
     answers = format_for_human(json, infos, type)
-    Tool.terminate(infos.pid, infos.uid, answers)
+    infos = %Irc.Infos{infos | answers: answers}
+    Tool.terminate(infos)
   end
 
   defp send_request(params, infos, appid, url) do
@@ -115,8 +117,9 @@ defmodule Hal.Plugin.Weather do
     case res.status_code do
       200 -> res.body
       _ ->
-        answers = ["HTTP Request failed with #{res.status_code}"]
-        send infos.pid, {:answer, {infos.uid, answers}}
+        answer = "HTTP Request failed with #{res.status_code}"
+        infos = %Irc.Infos{infos | answers: [answer]}
+        Tool.terminate(infos)     # let it crash
     end
   end
 
@@ -133,11 +136,12 @@ defmodule Hal.Plugin.Weather do
     # check if the API request was successful
     if code != 200 do
       error_msg = raw["message"]
-      answers = ["The API returns #{code}, #{error_msg}"]
-      send infos.pid, {:answer, {infos.pid, answers}}
+      answer = "The API returns #{code}, #{error_msg}"
+      infos = %Irc.Infos{infos | answers: [answer]}
+      Tool.terminate(infos)     # let it crash
     else
       case weather_type do
-        :current         -> pretty_print(raw, fun_current())
+        :current         -> [pretty_print(raw, fun_current())] # 'member, we need to return a list
         :forecast_hourly -> format_forecast(raw, fun_hourly())
         :forecast_daily  -> format_forecast(raw, fun_daily())
       end

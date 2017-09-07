@@ -12,6 +12,7 @@ defmodule Hal.Dispatcher do
   alias Hal.Plugin.Time, as: Time
   alias Hal.Plugin.Url, as: Url
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -82,7 +83,8 @@ defmodule Hal.Dispatcher do
     ]
 
     answers = plugins_answers ++ orphans
-    Tool.terminate(infos.pid, infos.uid, answers)
+    infos = %Irc.Infos{infos | answers: answers}
+    Tool.terminate(infos)
   end
 
   defp emojis(emoji, infos) do
@@ -101,15 +103,17 @@ defmodule Hal.Dispatcher do
                ".dunno"      -> "┐('～`；)┌"
                _             -> nil
              end
-    Tool.terminate(infos.pid, infos.uid, answer)
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
   end
 
   defp highlight_channel(infos) do
-    answers = case infos.chan do
-                nil -> ["This is not a channel"]
-                _   -> retrieve_users(infos.pid, infos.from, infos.chan)
-              end
-    Tool.terminate(infos.pid, infos.uid, answers)
+    answer = case infos.chan do
+               nil -> "This is not a channel"
+               _   -> retrieve_users(infos.pid, infos.from, infos.chan)
+             end
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
   end
 
   defp retrieve_users(frompid, from, chan) do
@@ -120,8 +124,8 @@ defmodule Hal.Dispatcher do
 
     # choose an alternative answer if nobody relevant is found
     case answer do
-      "" -> ["#{from}, there is nobody else in this channel."]
-      _ -> ["cc " <> answer]
+      "" -> "#{from}, there is nobody else in this channel."
+      _ -> "cc " <> answer
     end
   end
 
@@ -133,7 +137,9 @@ defmodule Hal.Dispatcher do
 
   defp weather(params, infos) do
     case params do
-      [] -> Tool.terminate(infos.pid, infos.uid, "Missing arguments")
+      [] ->
+        infos = %Irc.Infos{infos | answers: ["Missing arguments"]}
+        Tool.terminate(infos)
       ["hourly" | arg2] ->
         :poolboy.transaction(Weather, fn(pid) ->
           Weather.hourly(pid, arg2, infos)
@@ -146,7 +152,9 @@ defmodule Hal.Dispatcher do
         :poolboy.transaction(Weather, fn(pid) ->
           Weather.current(pid, params, infos)
         end)
-      _ -> Tool.terminate(infos.pid, infos.uid, "Nope")
+      _ ->
+        infos = %Irc.Infos{infos | answers: ["Nope"]}
+        Tool.terminate(infos)
     end
   end
 
@@ -166,7 +174,9 @@ defmodule Hal.Dispatcher do
         Reminder.set(pid, {user, memo}, infos)
       end)
     else
-      {:error, msg} -> Tool.terminate(infos.pid, infos.uid, msg)
+      {:error, msg} ->
+        infos = %Irc.Infos{infos | answers: msg}
+      Tool.terminate(infos)
     end
   end
 

@@ -6,6 +6,7 @@ defmodule Hal.Plugin.Reminder do
   use GenServer
   require Logger
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -48,7 +49,7 @@ defmodule Hal.Plugin.Reminder do
     # insert only if it does not exist yet
     query = fn ->
       case :mnesia.match_object({Reminder, to, infos.host, infos.chan, memo,
-                                  infos.from, :_}) do
+                                 infos.from, :_}) do
         [] ->
           rem = {Reminder, to, infos.host, infos.chan, memo, infos.from, time}
           :mnesia.write(rem)
@@ -58,12 +59,12 @@ defmodule Hal.Plugin.Reminder do
     end
 
     # choose the appropriate answer given the mnesia transaction
-    answers = case :mnesia.transaction(query) do
+    answer = case :mnesia.transaction(query) do
                {:atomic, :ok} -> "Reminder for #{to} is registered."
                {:atomic, nil} -> "Reminder already set."
              end
-
-    Tool.terminate(infos.pid, infos.uid, answers)
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 
@@ -81,7 +82,7 @@ defmodule Hal.Plugin.Reminder do
 
     # parse & send what we matched
     answers = case :mnesia.transaction(reminders_query) do
-                {:atomic, []} -> nil
+                {:atomic, []} -> [nil]
                 {:atomic, results} ->
                   Enum.map(results, fn(res) ->
                     {_reminder, _to, _host, _chan, memo, from, time} = res
@@ -89,7 +90,8 @@ defmodule Hal.Plugin.Reminder do
                   end)
               end
 
-    Tool.terminate(infos.pid, infos.uid, answers)
+    infos = %Irc.Infos{infos | answers: answers}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 

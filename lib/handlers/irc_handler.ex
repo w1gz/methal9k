@@ -8,7 +8,6 @@ defmodule Hal.IrcHandler do
   require Logger
   alias ExIrc.Client, as: IrcClient
   alias Hal.Dispatcher, as: Dispatcher
-  alias Hal.Keeper, as: Keeper
   alias Hal.Plugin.Url, as: Url
 
   defmodule Infos do
@@ -16,7 +15,6 @@ defmodule Hal.IrcHandler do
       from: nil,
       host: nil,
       chan: [],
-      uid: nil,
       pid: nil,
       answers: []
   end
@@ -48,17 +46,7 @@ defmodule Hal.IrcHandler do
         IrcClient.add_handler args.client, self()
         IrcClient.connect_ssl! args.client, args.host, args.port
     end
-
-    uids = case Keeper.give_me_your_table(:hal_keeper, __MODULE__) do
-             true -> nil # we will receive this by ETS-TRANSFER later on
-             _ -> hal_pid = Process.whereis(:hal_keeper)
-             :ets.new(String.to_atom(args.host),
-               [:set,
-                :private,
-                {:heir, hal_pid, __MODULE__}])
-           end
-    state = %{args | uids: uids}
-    {:ok, state}
+    {:ok, args}
   end
 
   def handle_call({:get_state}, _frompid, state) do
@@ -75,15 +63,8 @@ defmodule Hal.IrcHandler do
     {:reply, status, state}
   end
 
-  def handle_info({:answer, uid, answers}, state) do
-    answers = Enum.filter(answers, fn(x) -> x != nil end)
-    case :ets.lookup(state.uids, uid) do
-      [] -> :ok
-      [{_uid, infos}] ->
-        infos = %Infos{infos | answers: answers}
-        answer_back(infos, state)
-        :ets.delete(state.uids, uid)
-    end
+  def handle_info({:answer, infos}, state) do
+    answer_back(infos, state)
     {:noreply, state}
   end
 
@@ -109,8 +90,8 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:joined, chan, from}, state) do
-    infos = %Infos{msg: ".joined", from: from.nick, host: state.host, chan: chan}
-    generic_received(infos, state)
+    infos = %Infos{msg: ".joined", from: from.nick, host: state.host, chan: chan, pid: self()}
+    generic_received(infos)
     {:noreply, state}
   end
 
@@ -120,20 +101,14 @@ defmodule Hal.IrcHandler do
   end
 
   def handle_info({:received, msg, from}, state) do
-    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: nil}
-    generic_received(infos, state)
+    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: nil, pid: self()}
+    generic_received(infos)
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from, chan}, state) do
-    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: chan}
-    generic_received(infos, state)
-    {:noreply, state}
-  end
-
-  def handle_info({:'ETS-TRANSFER', table_id, owner, module}, state) do
-    Logger.debug("[ETS] #{inspect table_id} from #{inspect module} #{inspect owner}")
-    state = %{state | uids: table_id}
+    infos = %Infos{msg: msg, from: from.nick, host: state.host, chan: chan, pid: self()}
+    generic_received(infos)
     {:noreply, state}
   end
 
@@ -150,16 +125,9 @@ defmodule Hal.IrcHandler do
     {:ok, state}
   end
 
-  defp give_me_an_id(infos) do
-    time_seed = UUID.uuid1()
-    data_seed = "#{infos.msg}#{infos.from}#{infos.host}#{infos.chan}"
-    UUID.uuid5(time_seed, data_seed, :hex)
-  end
-
-  defp generic_received(infos, state) do
+  defp generic_received(infos) do
     case String.at(infos.msg, 0) do
       "." ->
-        infos = generate_request(infos, state)
         :poolboy.transaction(Dispatcher, fn(pid) ->
           Dispatcher.command(pid, infos)
         end)
@@ -169,7 +137,6 @@ defmodule Hal.IrcHandler do
           [] ->
             nil
           _ ->
-            infos = generate_request(infos, state)
             :poolboy.transaction(Url, fn(pid) ->
               Url.preview(pid, urls, infos)
             end)
@@ -177,23 +144,15 @@ defmodule Hal.IrcHandler do
     end
   end
 
-  defp generate_request(infos, state) do
-    uid = give_me_an_id(infos)
-    infos = %{infos | uid: uid, pid: self()}
-    true = :ets.insert(state.uids, {uid, infos})
-    infos
-  end
-
   defp answer_back(infos, state) do
-    Enum.each(infos.answers, fn(answer) ->
-      answer = answer
-      |> String.trim                            # trim leading/trailing
-      |> String.split("\n") |> Enum.join(" - ") # merge lines
-
+    infos.answers
+    |> Enum.filter(fn(x) -> x != nil end)
+    |> Enum.each(fn(answer) ->
+      msg = answer |> String.trim |> String.split("\n") |> Enum.join(" - ")
       # take private_msg into account
       case infos.chan do
-        nil -> IrcClient.msg state.client, :privmsg, infos.from, answer
-        _   -> IrcClient.msg state.client, :privmsg, infos.chan, answer
+        nil -> IrcClient.msg state.client, :privmsg, infos.from, msg
+        _   -> IrcClient.msg state.client, :privmsg, infos.chan, msg
       end
     end)
   end

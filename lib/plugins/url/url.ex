@@ -6,6 +6,7 @@ defmodule Hal.Plugin.Url do
   use GenServer
   require Logger
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -29,10 +30,9 @@ defmodule Hal.Plugin.Url do
   end
 
   def handle_cast({:preview, urls, infos}, state) do
-    answers = urls
-    |> Enum.filter(&(&1 != ""))
-    |> Enum.map(&(get_title(&1)))
-    Tool.terminate(infos.pid, infos.uid, answers)
+    answers = urls |> Enum.filter(&(&1 != "")) |> Enum.map(&(get_title(&1)))
+    infos = %Irc.Infos{infos | answers: answers}
+    Tool.terminate(infos)
     {:noreply, state}
   end
 

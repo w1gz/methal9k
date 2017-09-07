@@ -11,14 +11,13 @@ defmodule Hal do
     This module holds the global hal9k state in order to have a nice IRC
     connection. Those informations are:
     - `client` store the ExIrc client state
-    - `host` irc host (chat.freenode.net)
-    - `port`  irc port (6697)
-    - `chans` irc channels (["#awesome-chan", "#pulp-fiction"]
+    - `host` irc server to connect to
+    - `port`  irc server port
+    - `chans` irc channels
     - `nick` login for the irc server
     - `pass` the associated password
     - `user` misc infos
     - `name` misc infos
-    - `uids` ETS table storing the current jobs being run
     """
 
     defstruct client: nil,
@@ -28,8 +27,7 @@ defmodule Hal do
       nick: "hal",
       name: "hal",
       user: "hal",
-      pass: "",
-      uids: %{}
+      pass: ""
   end
 
   def start(_type, [credentials]) do

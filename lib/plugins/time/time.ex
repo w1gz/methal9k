@@ -7,6 +7,7 @@ defmodule Hal.Plugin.Time do
   require Logger
   alias Timex.Timezone, as: Timezone
   alias Hal.Tool, as: Tool
+  alias Hal.IrcHandler, as: Irc
 
   defmodule Credentials do
     @moduledoc """
@@ -57,21 +58,22 @@ defmodule Hal.Plugin.Time do
   end
 
   defp current_time(params, infos, state) do
-    time_res = case params do
-                 [] -> "Missing arguments"
-                 _ ->
-                   tz = hd(params)
-                   timezone = case Timezone.exists?(tz) do
-                                true -> tz
-                                false -> find_timezone(params, state)
-                              end
-                   city = Enum.join(params, " ")
-                   dt = Timex.now(timezone)
-                   time_str = "%T in #{city} (%D), #{timezone} %:z UTC"
-                   {:ok, current} = Timex.format(dt, time_str, :strftime)
-                   current
-               end
-    Tool.terminate(infos.pid, infos.uid, time_res)
+    answer = case params do
+               [] -> "Missing arguments"
+               _ ->
+                 tz = hd(params)
+                 timezone = case Timezone.exists?(tz) do
+                              true -> tz
+                              false -> find_timezone(params, state)
+                            end
+                 city = Enum.join(params, " ")
+                 dt = Timex.now(timezone)
+                 time_str = "%T in #{city} (%D), #{timezone} %:z UTC"
+                 {:ok, current} = Timex.format(dt, time_str, :strftime)
+                 current
+             end
+    infos = %Irc.Infos{infos | answers: [answer]}
+    Tool.terminate(infos)
   end
 
   defp find_timezone(params, state) do
