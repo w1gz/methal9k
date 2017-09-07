@@ -15,7 +15,6 @@ defmodule Hal.Plugin.Weather do
     defstruct appid: nil
   end
 
-  # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
   end
@@ -24,13 +23,6 @@ defmodule Hal.Plugin.Weather do
     GenServer.call(pid, :usage)
   end
 
-  @doc """
-  Fetch the current weather for a given location.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `params` list of string containing the location.
-  """
   def current(pid, params, infos) do
     GenServer.cast(pid, {:current, params, infos})
   end
@@ -69,7 +61,6 @@ defmodule Hal.Plugin.Weather do
     GenServer.cast(pid, {:forecast_daily, params, infos})
   end
 
-  # Server callbacks
   def init(_state) do
     Logger.debug("[NEW] PluginWeather #{inspect self()}")
     filename = "lib/plugins/weather/weather_token.sec"
@@ -110,7 +101,6 @@ defmodule Hal.Plugin.Weather do
     {:ok, state}
   end
 
-  # Internal functions
   defp get_weather({type, params, infos}, appid, url) do
     json = send_request(params, infos, appid, url)
     answers = format_for_human(json, infos, type)

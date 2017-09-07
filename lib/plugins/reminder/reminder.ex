@@ -7,7 +7,6 @@ defmodule Hal.Plugin.Reminder do
   require Logger
   alias Hal.Tool, as: Tool
 
-  # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
   end
@@ -16,29 +15,14 @@ defmodule Hal.Plugin.Reminder do
     GenServer.call(pid, :usage)
   end
 
-  @doc """
-  Sets a reminder for a person in a specific channel. This doesn't work on
-  private messages.
-
-  `user` is the person that needs to be reminded.
-  `memo` message to register for the `user`.
-
-  `pid` the pid of the GenServer that will be called.
-  """
   def set(pid, reminder, infos) do
     GenServer.cast(pid, {:set, reminder, infos})
   end
 
-  @doc """
-  Retrieve a reminder for a specific person in the appropriate channel.
-
-  `pid` the pid of the GenServer that will be called.
-  """
   def get(pid, infos) do
     GenServer.cast(pid, {:get, infos})
   end
 
-  # Server callbacks
   def init(args) do
     Logger.debug("[NEW] PluginReminder #{inspect self()}")
     :mnesia.create_table(Reminder, [

@@ -7,7 +7,6 @@ defmodule Hal.Plugin.Url do
   require Logger
   alias Hal.Tool, as: Tool
 
-  # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
   end
@@ -20,7 +19,6 @@ defmodule Hal.Plugin.Url do
     GenServer.call(pid, :usage)
   end
 
-  # Server callbacks
   def init(state) do
     {:ok, state}
   end

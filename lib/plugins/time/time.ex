@@ -17,7 +17,6 @@ defmodule Hal.Plugin.Time do
       tz_id: nil
   end
 
-  # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
   end
@@ -26,18 +25,10 @@ defmodule Hal.Plugin.Time do
     GenServer.call(pid, :usage)
   end
 
-  @doc """
-  Fetches the current time for a city or timezone (tz format).
-
-  `pid` the pid of the GenServer that will be called.
-
-  `params` list of string containing either the city name or a timezone.
-  """
   def current(pid, params, infos) do
     GenServer.cast(pid, {:get, params, infos})
   end
 
-  # Server callbacks
   def init(_state) do
     Logger.debug("[NEW] PluginTime #{inspect self()}")
     geo_id = Tool.read_token("lib/plugins/time/geo.sec")
@@ -65,7 +56,6 @@ defmodule Hal.Plugin.Time do
     {:ok, state}
   end
 
-  # Internal functions
   defp current_time(params, infos, state) do
     time_res = case params do
                  [] -> "Missing arguments"

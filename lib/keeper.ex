@@ -2,27 +2,18 @@ defmodule Hal.Keeper do
   @moduledoc """
   Keep & protect an ETS table from an unstable GenServer
   """
-
   use GenServer
   require Logger
 
-  # Client API
   def start_link(args, opts \\ []) do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  @doc """
-  Retrieve the ETS table stored in its internal state and give it out to the
-  appropriate process.
-
-  `pid` the pid of the GenServer that will be called
-  """
   def give_me_your_table(pid, module) do
     Logger.debug("[ETS] asking #{inspect pid} for the table of #{inspect module}")
     GenServer.call(pid, {:give_me_your_table, module})
   end
 
-  # Server callbacks
   def init(_args) do
     Logger.debug("[NEW] Keeper #{inspect self()}")
     state = Map.new()

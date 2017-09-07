@@ -13,22 +13,14 @@ defmodule Hal.Dispatcher do
   alias Hal.Plugin.Url, as: Url
   alias Hal.Tool, as: Tool
 
-  # Client API
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
   end
 
-  @doc """
-  Find the appropriate process to call (generally determined by parsing the
-  `msg` argument).
-
-  `pid` the pid of the GenServer that will be called.
-  """
   def command(pid, infos) do
     GenServer.cast(pid, {:command, infos})
   end
 
-  # Server callbacks
   def init(args) do
     Logger.debug("[NEW] Dispatcher #{inspect self()}")
     {:ok, args}
@@ -48,7 +40,6 @@ defmodule Hal.Dispatcher do
     {:ok, state}
   end
 
-  # Internal functions
   defp check_out_the_big_brain_on_brett(infos) do
     [cmd | params] = String.split(infos.msg)
     case cmd do

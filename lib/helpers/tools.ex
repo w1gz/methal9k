@@ -11,18 +11,6 @@ defmodule Hal.Tool do
      {:size, size}, {:max_overflow, overflow}]
   end
 
-  @doc """
-  Kill a process and send its answer to the appropriate process.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `dest` the process to which the `answer` should be sent.
-
-  `uid` the uid generated for this request.
-
-  `answers` a list of string. If a string is sent, it will be wrapped inside
-  a list
-  """
   def terminate(dest, uid, answer) when not is_list(answer) do
     terminate(dest, uid, [answer])
   end

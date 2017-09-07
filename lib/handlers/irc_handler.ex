@@ -21,46 +21,22 @@ defmodule Hal.IrcHandler do
       answers: []
   end
 
-  # Client
   def start_link(args, opts \\ []) do
     GenServer.start_link(__MODULE__, args, opts)
   end
 
-  @doc """
-  Return the current internal state of this module. Useful for sending messages
-  directly to the ExIrc process.
-
-  `pid` the pid of the GenServer that will be called.
-  """
   def get_state(pid) do
     GenServer.call(pid, {:get_state})
   end
 
-  @doc """
-  Return the list of users in a given IRC `chan`.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `chan` the IRC channel in which you want to retrieve the list of users.
-  """
   def get_users(pid, chan) do
     GenServer.call(pid, {:get_users, chan})
   end
 
-  @doc """
-  Check wether the given `user` is present in a specific `chan` or not.
-
-  `pid` the pid of the GenServer that will be called.
-
-  `user` that you want to check the presence.
-
-  `chan` channel in which to look for the `user`.
-  """
   def has_user(pid, chan, user) do
     GenServer.call(pid, {:has_user, chan, user})
   end
 
-  # Server callbacks
   def init(args) do
     Logger.debug("[NEW] IrcHandler #{inspect self()}")
     case IrcClient.is_logged_on? args.client do
@@ -174,7 +150,6 @@ defmodule Hal.IrcHandler do
     {:ok, state}
   end
 
-  # Internal functions
   defp give_me_an_id(infos) do
     time_seed = UUID.uuid1()
     data_seed = "#{infos.msg}#{infos.from}#{infos.host}#{infos.chan}"
