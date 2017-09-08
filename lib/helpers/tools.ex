@@ -11,12 +11,12 @@ defmodule Hal.Tool do
      {:size, size}, {:max_overflow, overflow}]
   end
 
-  def terminate(infos) do
+  def terminate(infos, type \\ :msg) do
     case infos.answers do
       [nil] -> nil
       _ ->
         Logger.debug("Sending back #{inspect infos.answers}")
-        send infos.pid, {:answer, infos}
+        send infos.pid, {:answer, infos, type}
     end
   end
 

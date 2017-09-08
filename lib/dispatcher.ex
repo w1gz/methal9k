@@ -104,7 +104,7 @@ defmodule Hal.Dispatcher do
                _             -> nil
              end
     infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos)
+    Tool.terminate(infos, :me)
   end
 
   defp highlight_channel(infos) do
@@ -175,7 +175,7 @@ defmodule Hal.Dispatcher do
       end)
     else
       {:error, msg} ->
-        infos = %Irc.Infos{infos | answers: msg}
+        infos = %Irc.Infos{infos | answers: [msg]}
       Tool.terminate(infos)
     end
   end
