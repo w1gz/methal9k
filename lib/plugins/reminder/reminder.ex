@@ -39,7 +39,7 @@ defmodule Hal.Plugin.Reminder do
   end
 
   def handle_call(:usage, _frompid, state) do
-    answer = ".remind <someone> <msg> as soon as he /join this channel"
+    answer = ".remind <someone> <msg> as soon as they /join this channel"
     {:reply, answer, state}
   end
 
