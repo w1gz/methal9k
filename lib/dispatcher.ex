@@ -90,6 +90,8 @@ defmodule Hal.Dispatcher do
   defp emojis(emoji, infos) do
     answer = case emoji do
                ".wtf"        -> "(⊙＿⊙')"
+               ".wtf2"       -> "(ʘ _ ʘ)"
+               ".wtf3"       -> "(ʘ _ ⚆)"
                ".yay"        -> "\\( ﾟヮﾟ)/"
                ".tableflip"  -> "(╯°□°）╯︵ ┻━┻"
                ".flip"       -> "┬──┬◡ﾉ(° -°ﾉ)"
