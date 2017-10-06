@@ -10,7 +10,7 @@ defmodule Hal.Dispatcher do
   alias Hal.Plugin.Reminder, as: Reminder
   alias Hal.Plugin.Weather, as: Weather
   alias Hal.Plugin.Time, as: Time
-  alias Hal.Plugin.Url, as: Url
+  alias Hal.Plugin.Web, as: Web
   alias Hal.Tool, as: Tool
   alias Hal.IrcHandler, as: Irc
 
@@ -51,7 +51,7 @@ defmodule Hal.Dispatcher do
       ".remind"     -> set_reminder(params, infos)
       ".quote"      -> manage_quote(rm_cmd(infos.msg, cmd), infos)
       ".chan"       -> highlight_channel(infos)
-      ".url"        -> url_preview(rm_cmd(infos.msg, cmd), infos)
+      ".web"        -> web_search(rm_cmd(infos.msg, cmd), infos)
       _             -> emojis(cmd, infos)
     end
   end
@@ -209,10 +209,10 @@ defmodule Hal.Dispatcher do
     end)
   end
 
-  # this is only called by the .url command, not the autoparsing one
-  defp url_preview(url, infos) do
-    :poolboy.transaction(Url, fn(pid) ->
-      Url.preview(pid, [url], infos)
+  # this is only called by the .web command, not the autoparsing one
+  defp web_search(params, infos) do
+    :poolboy.transaction(Web, fn(pid) ->
+      Web.search(pid, params, infos)
     end)
   end
 

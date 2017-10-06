@@ -8,7 +8,7 @@ defmodule Hal.IrcHandler do
   require Logger
   alias ExIrc.Client, as: IrcClient
   alias Hal.Dispatcher, as: Dispatcher
-  alias Hal.Plugin.Url, as: Url
+  alias Hal.Plugin.Web, as: Web
 
   defmodule Infos do
     defstruct msg: "",
@@ -156,7 +156,7 @@ defmodule Hal.IrcHandler do
     urls = Regex.scan(~r{https?://[^\s]+}, infos.msg) |> List.flatten
     case urls do
       [] -> nil
-      _ -> :poolboy.transaction(Url, fn(pid) -> Url.preview(pid, urls, infos) end)
+      _ -> :poolboy.transaction(Web, fn(pid) -> Web.preview(pid, urls, infos) end)
     end
   end
 
