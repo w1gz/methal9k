@@ -68,7 +68,7 @@ defmodule Hal.Plugin.Quote do
            {:atomic, :"$end_of_table"} -> 0
            {:atomic, last} -> last + 1
          end
-    {:ok, time} = Timex.format(Timex.now(), "%D (%R UTC)", :strftime)
+    {:ok, time} = Timex.format(Timex.now(), "%F (%R UTC)", :strftime)
 
     # actual query
     query = fn -> :mnesia.write({Quote, id, time, msg_to_quote}) end
