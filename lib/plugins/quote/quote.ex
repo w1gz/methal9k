@@ -49,6 +49,8 @@ defmodule Hal.Plugin.Quote do
           attributes: [
             :id,
             :time,
+            :host,
+            :chan,
             :quote,
           ],
           type: :ordered_set,
@@ -61,7 +63,7 @@ defmodule Hal.Plugin.Quote do
     {:reply, answer, state}
   end
 
-  def handle_cast({:add, infos, msg_to_quote}, state) do
+  def handle_cast({:add, infos, msg}, state) do
     # construct dependencies for adding quote
     last_id = :mnesia.transaction(fn -> :mnesia.last(Quote) end)
     id = case last_id do
@@ -71,7 +73,7 @@ defmodule Hal.Plugin.Quote do
     {:ok, time} = Timex.format(Timex.now(), "%F (%R UTC)", :strftime)
 
     # actual query
-    query = fn -> :mnesia.write({Quote, id, time, msg_to_quote}) end
+    query = fn -> :mnesia.write({Quote, id, time, infos.host, infos.chan, msg}) end
     answer = case :mnesia.transaction(query) do
                {:atomic, :ok} -> "Quote #{id} registered."
                _ -> "Quote can't be registered"
@@ -83,10 +85,18 @@ defmodule Hal.Plugin.Quote do
 
   def handle_cast({:del, infos, quote_id}, state) do
     {id, _rem} = Integer.parse(quote_id)
-    query = fn -> :mnesia.delete({Quote, id}) end
+    query = fn ->
+      a_quote = {Quote, id, :'_', infos.host, infos.chan, :'_'}
+      case :mnesia.match_object(a_quote) do
+        [] -> nil
+        [result] -> :mnesia.delete_object(result)
+      end
+    end
+
     answer = case :mnesia.transaction(query) do
-               {:atomic, :ok}      -> "Quote #{id} successfully deleted."
+               {:atomic, _}        -> "Quote #{id} successfully deleted."
                {:aborted, _reason} -> "Can't delete, something's wrong..."
+               nil                 -> "Nothing to delete."
              end
     infos = %Irc.Infos{infos | answers: [answer]}
     Tool.terminate(infos)
@@ -95,15 +105,14 @@ defmodule Hal.Plugin.Quote do
 
   def handle_cast({:get, infos, quote_or_id}, state) do
     aborted_msg = "Can't find anything... weird."
-
     query_with_integer = fn(id) ->
       # directly acces the quote with its id
-      query = fn -> :mnesia.read({Quote, id}) end
+      query = fn -> :mnesia.match_object({Quote, id, :'_', infos.host, infos.chan, :'_'}) end
       case :mnesia.transaction(query) do
         {:atomic, match} ->
           case Enum.at(match, 0) do
             nil -> aborted_msg
-            {_Q, idx, time, msg} -> "[#{idx}] #{time} #{msg}"
+            {_Q, idx, time, _host, _chan, msg} -> "[#{idx}] #{time} #{msg}"
           end
         {:aborted, _reason} -> aborted_msg
       end
@@ -111,17 +120,17 @@ defmodule Hal.Plugin.Quote do
 
     query_with_keyword = fn(keyword) ->
       # look for the quote in :'$3' (msg field)
-      query = fn -> :mnesia.match_object({Quote, :'_', :'$2', :'$3'}) end
+      query = fn -> :mnesia.match_object({Quote, :'_', :'$2', infos.host, infos.chan, :'$3'}) end
       case :mnesia.transaction(query) do
         {:atomic, match} ->
           # TODO do the filter in the mnesia request?
           quotes = Enum.filter(match,
-          fn({_Q, _id, _time, msg}) -> String.contains?(msg, keyword) end)
+          fn({_Q, _id, _time, _host, _chan, msg}) -> String.contains?(msg, keyword) end)
           rand_seed = max(length(quotes), 1)
           r = :rand.uniform(rand_seed) - 1
           case Enum.at(quotes, r) do
             nil -> aborted_msg
-            {_Q, idx, time, msg} -> "[#{idx}] #{time} #{msg}"
+            {_Q, idx, time, _host, _chan, msg} -> "[#{idx}] #{time} #{msg}"
           end
         {:aborted, _reason} -> aborted_msg
       end
