@@ -7,17 +7,7 @@ defmodule Hal.IrcHandler do
   use GenServer
   require Logger
   alias ExIrc.Client, as: IrcClient
-  alias Hal.Dispatcher, as: Dispatcher
-  alias Hal.Plugin.Web, as: Web
-
-  defmodule Infos do
-    defstruct msg: "",
-      from: nil,
-      host: nil,
-      chan: [],
-      pid: nil,
-      answers: []
-  end
+  alias Hal.CommonHandler, as: Handler
 
   def start_link(args, opts \\ []) do
     GenServer.start_link(__MODULE__, args, opts)
@@ -98,8 +88,8 @@ defmodule Hal.IrcHandler do
 
   def handle_info({:joined, chan, from}, state) do
     irc = state[:irc_credz]
-    infos = %Infos{msg: ".joined", from: from.nick, host: irc.host, chan: chan, pid: self()}
-    updated_buffer = generic_received(infos, state)
+    infos = %Handler.Infos{msg: ".joined", from: from.nick, host: irc.host, chan: chan, pid: self()}
+    updated_buffer = update_circular_buffer(infos, state)
     state = Map.put(state, :buffer, updated_buffer)
     {:noreply, state}
   end
@@ -111,16 +101,16 @@ defmodule Hal.IrcHandler do
 
   def handle_info({:received, msg, from}, state) do
     irc = state[:irc_credz]
-    infos = %Infos{msg: msg, from: from.nick, host: irc.host, chan: nil, pid: self()}
-    updated_buffer = generic_received(infos, state)
+    infos = %Handler.Infos{msg: msg, from: from.nick, host: irc.host, chan: nil, pid: self()}
+    updated_buffer = update_circular_buffer(infos, state)
     state = Map.put(state, :buffer, updated_buffer)
     {:noreply, state}
   end
 
   def handle_info({:received, msg, from, chan}, state) do
     irc = state[:irc_credz]
-    infos = %Infos{msg: msg, from: from.nick, host: irc.host, chan: chan, pid: self()}
-    updated_buffer = generic_received(infos, state)
+    infos = %Handler.Infos{msg: msg, from: from.nick, host: irc.host, chan: chan, pid: self()}
+    updated_buffer = update_circular_buffer(infos, state)
     state = Map.put(state, :buffer, updated_buffer)
     {:noreply, state}
   end
@@ -136,28 +126,6 @@ defmodule Hal.IrcHandler do
 
   def code_change(_old_vsn, state, _extra) do
     {:ok, state}
-  end
-
-  defp generic_received(infos, state) do
-    buffer = state[:buffer]
-    case String.at(infos.msg, 0) do
-      "." ->
-        :poolboy.transaction(Dispatcher, fn(pid) ->
-          Dispatcher.command(pid, infos)
-        end)
-        buffer
-      _ ->
-        check_url(infos)         # do we have an http link to fetch ?
-        check_sed(infos, state)  # circular buffer for the sed-like feature
-    end
-  end
-
-  defp check_url(infos) do
-    urls = Regex.scan(~r{https?://[^\s]+}, infos.msg) |> List.flatten
-    case urls do
-      [] -> nil
-      _ -> :poolboy.transaction(Web, fn(pid) -> Web.preview(pid, urls, infos) end)
-    end
   end
 
   defp check_sed(infos, state) do
@@ -183,14 +151,14 @@ defmodule Hal.IrcHandler do
 
   defp substitute(nil, _left, _right, infos) do
     Logger.debug("Can't find something to sed")
-    %Infos{infos | answers: [nil]}
+    %Handler.Infos{infos | answers: [nil]}
   end
 
   defp substitute(match, left, right, infos) do
     Logger.debug("Replacing '#{left}' by '#{right}' in '#{match.msg}'")
     seded = String.replace(match.msg, left, right)
     answer = "#{match.from} meant to say '#{seded}'"
-    %Infos{infos | answers: [answer]}
+    %Handler.Infos{infos | answers: [answer]}
   end
 
   defp look_for_substitute(infos, buffer) do
@@ -218,6 +186,15 @@ defmodule Hal.IrcHandler do
         :me      -> IrcClient.me(irc.client, infos.chan, msg)
       end
     end)
+  end
+
+  defp update_circular_buffer(infos, state) do
+    case Handler.check_command(infos) do
+      :ok -> state[:buffer]
+      nil ->
+        Handler.check_url(infos)         # do we have an http link to fetch ?
+        check_sed(infos, state)  # circular buffer for the sed-like feature
+    end
   end
 
 end

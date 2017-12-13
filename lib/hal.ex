@@ -34,7 +34,8 @@ defmodule Hal do
     import Supervisor.Spec, warn: false
 
     # read config file or fallback to internal configuration
-    confs = parse_conf(credentials)
+    irc_conf = parse_irc_conf(credentials)
+    slack_conf = parse_slack_conf(credentials)
 
     # launch Mnesia
     :mnesia.create_schema([node()])
@@ -43,21 +44,35 @@ defmodule Hal do
     # static processes
     children = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
-      supervisor(Hal.IrcSupervisor, [confs, [name: :hal_irc_supervisor]]),
+      supervisor(Hal.IrcSupervisor, [irc_conf, [name: :hal_irc_supervisor]]),
+      supervisor(Hal.SlackSupervisor, [slack_conf, [name: :hal_slack_supervisor]]),
       supervisor(Hal.PluginSupervisor, [[], [name: :hal_plugin_supervisor]]),
       :poolboy.child_spec(:p_dispatcher, Tool.poolboy_conf(Hal.Dispatcher, 20, 10))
     ]
     Supervisor.start_link(children, [name: :hal, strategy: :one_for_one])
   end
 
-  defp parse_conf(credentials) do
+  defp parse_slack_conf(credentials) do
+    try do
+      YamlElixir.read_all_from_file(credentials)
+    catch
+      _ -> [""]
+    else
+      [yaml] ->
+        Enum.map(yaml["slack"], fn(s) ->
+          %{token: s["token"], host: s["host"]}
+        end)
+    end
+  end
+
+  defp parse_irc_conf(credentials) do
     try do
       YamlElixir.read_all_from_file(credentials)
     catch
       _ -> [%State{}]
     else
       [yaml] ->
-        Enum.map(yaml["servers"], fn(s) ->
+        Enum.map(yaml["irc"], fn(s) ->
           %State{host: s["host"],
                  port: s["port"],
                  chans: s["chans"],

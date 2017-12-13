@@ -1,12 +1,11 @@
-defmodule Hal.Plugin.Reminder do
+defmodule Hal.Plugin.Bouncer do
   @moduledoc """
-  Leave messages/reminder for a disconnected contact
+  Leave messages for a disconnected contact
   """
 
   use GenServer
   require Logger
-  alias Hal.Tool, as: Tool
-  alias Hal.IrcHandler, as: Irc
+  alias Hal.CommonHandler, as: Handler
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -16,8 +15,8 @@ defmodule Hal.Plugin.Reminder do
     GenServer.call(pid, :usage)
   end
 
-  def set(pid, reminder, infos) do
-    GenServer.cast(pid, {:set, reminder, infos})
+  def set(pid, bouncer, infos) do
+    GenServer.cast(pid, {:set, bouncer, infos})
   end
 
   def get(pid, infos) do
@@ -25,8 +24,8 @@ defmodule Hal.Plugin.Reminder do
   end
 
   def init(args) do
-    Logger.debug("[NEW] PluginReminder #{inspect self()}")
-    :mnesia.create_table(Reminder, [
+    Logger.debug("[NEW] PluginBouncer #{inspect self()}")
+    :mnesia.create_table(Bouncer, [
           attributes: [:to,
                        :host,
                        :chan,
@@ -39,40 +38,39 @@ defmodule Hal.Plugin.Reminder do
   end
 
   def handle_call(:usage, _frompid, state) do
-    answer = ".remind <someone> <msg> as soon as they /join this channel"
+    answer = ".bounce <someone> <msg>, send them <msg> as soon as they /join this channel"
     {:reply, answer, state}
   end
 
-  def handle_cast({:set, {to, memo} = _reminder, infos}, state) do
+  def handle_cast({:set, {to, memo} = _bouncer, infos}, state) do
     {:ok, time} = Timex.format(Timex.now(), "%D, %R UTC", :strftime)
 
     # insert only if it does not exist yet
     query = fn ->
-      case :mnesia.match_object({Reminder, to, infos.host, infos.chan, memo,
+      case :mnesia.match_object({Bouncer, to, infos.host, infos.chan, memo,
                                  infos.from, :_}) do
         [] ->
-          rem = {Reminder, to, infos.host, infos.chan, memo, infos.from, time}
+          rem = {Bouncer, to, infos.host, infos.chan, memo, infos.from, time}
           :mnesia.write(rem)
         something when is_list(something) ->
-          nil # reminder already set end end
+          nil # bouncer already set end end
       end
     end
 
     # choose the appropriate answer given the mnesia transaction
     answer = case :mnesia.transaction(query) do
-               {:atomic, :ok} -> "Reminder for #{to} is registered."
-               {:atomic, nil} -> "Reminder already set."
+               {:atomic, :ok} -> "Bouncer for #{to} is registered."
+               {:atomic, nil} -> "Bouncer already set."
              end
-    infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos)
+    infos = %Handler.Infos{infos | answers: [answer]}
+    Handler.terminate(infos)
     {:noreply, state}
   end
 
   def handle_cast({:get, infos}, state) do
-    # {_, join_user, host, chan} = infos
-    reminders_query = fn ->
-      reminder = {Reminder, infos.from, infos.host, infos.chan, :'$1', :'$2', :'$3'}
-      case :mnesia.match_object(reminder) do
+    bouncers_query = fn ->
+      bouncer = {Bouncer, infos.from, infos.host, infos.chan, :'$1', :'$2', :'$3'}
+      case :mnesia.match_object(bouncer) do
         [] -> []
         something when is_list(something) ->
           Enum.each(something, &(:mnesia.delete_object(&1)))
@@ -81,17 +79,17 @@ defmodule Hal.Plugin.Reminder do
     end
 
     # parse & send what we matched
-    answers = case :mnesia.transaction(reminders_query) do
+    answers = case :mnesia.transaction(bouncers_query) do
                 {:atomic, []} -> [nil]
                 {:atomic, results} ->
                   Enum.map(results, fn(res) ->
-                    {_reminder, _to, _host, _chan, memo, from, time} = res
+                    {_bouncer, _to, _host, _chan, memo, from, time} = res
                     "#{from} to #{infos.from}: #{memo} (#{time})"
                   end)
               end
 
-    infos = %Irc.Infos{infos | answers: answers}
-    Tool.terminate(infos)
+    infos = %Handler.Infos{infos | answers: answers}
+    Handler.terminate(infos)
     {:noreply, state}
   end
 

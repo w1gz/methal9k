@@ -7,7 +7,7 @@ defmodule Hal.Plugin.Time do
   require Logger
   alias Timex.Timezone, as: Timezone
   alias Hal.Tool, as: Tool
-  alias Hal.IrcHandler, as: Irc
+  alias Hal.CommonHandler, as: Handler
 
   defmodule Credentials do
     @moduledoc """
@@ -72,8 +72,8 @@ defmodule Hal.Plugin.Time do
                  {:ok, current} = Timex.format(dt, time_str, :strftime)
                  current
              end
-    infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos)
+    infos = %Handler.Infos{infos | answers: [answer]}
+    Handler.terminate(infos)
   end
 
   defp find_timezone(params, state) do

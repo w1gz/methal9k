@@ -7,12 +7,11 @@ defmodule Hal.Dispatcher do
   use GenServer
   require Logger
   alias Hal.Plugin.Quote, as: Quote
-  alias Hal.Plugin.Reminder, as: Reminder
+  alias Hal.Plugin.Bouncer, as: Bouncer
   alias Hal.Plugin.Weather, as: Weather
   alias Hal.Plugin.Time, as: Time
   alias Hal.Plugin.Web, as: Web
-  alias Hal.Tool, as: Tool
-  alias Hal.IrcHandler, as: Irc
+  alias Hal.CommonHandler, as: Handler
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, [], opts)
@@ -47,8 +46,8 @@ defmodule Hal.Dispatcher do
       ".help"       -> help_cmd(infos)
       ".weather"    -> weather(params, infos)
       ".time"       -> time(params, infos)
-      ".joined"     -> get_reminder(infos)
-      ".remind"     -> set_reminder(params, infos)
+      ".joined"     -> get_bouncer(infos)
+      ".bounce"     -> set_bouncer(params, infos)
       ".quote"      -> manage_quote(rm_cmd(infos.msg, cmd), infos)
       ".chan"       -> highlight_channel(infos)
       ".web"        -> web_search(rm_cmd(infos.msg, cmd), infos)
@@ -83,8 +82,8 @@ defmodule Hal.Dispatcher do
     ]
 
     answers = plugins_answers ++ orphans
-    infos = %Irc.Infos{infos | answers: answers}
-    Tool.terminate(infos)
+    infos = %Handler.Infos{infos | answers: answers}
+    Handler.terminate(infos)
   end
 
   defp emojis(emoji, infos) do
@@ -105,8 +104,8 @@ defmodule Hal.Dispatcher do
                ".dunno"      -> "┐('～`；)┌"
                _             -> nil
              end
-    infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos, :me)
+    infos = %Handler.Infos{infos | answers: [answer]}
+    Handler.terminate(infos, :me)
   end
 
   defp highlight_channel(infos) do
@@ -114,8 +113,8 @@ defmodule Hal.Dispatcher do
                nil -> "This is not a channel"
                _   -> retrieve_users(infos.pid, infos.from, infos.chan)
              end
-    infos = %Irc.Infos{infos | answers: [answer]}
-    Tool.terminate(infos)
+    infos = %Handler.Infos{infos | answers: [answer]}
+    Handler.terminate(infos)
   end
 
   defp retrieve_users(frompid, from, chan) do
@@ -140,8 +139,8 @@ defmodule Hal.Dispatcher do
   defp weather(params, infos) do
     case params do
       [] ->
-        infos = %Irc.Infos{infos | answers: ["Missing arguments"]}
-        Tool.terminate(infos)
+        infos = %Handler.Infos{infos | answers: ["Missing arguments"]}
+        Handler.terminate(infos)
       ["hourly" | arg2] ->
         :poolboy.transaction(Weather, fn(pid) ->
           Weather.hourly(pid, arg2, infos)
@@ -155,48 +154,48 @@ defmodule Hal.Dispatcher do
           Weather.current(pid, params, infos)
         end)
       _ ->
-        infos = %Irc.Infos{infos | answers: ["Nope"]}
-        Tool.terminate(infos)
+        infos = %Handler.Infos{infos | answers: ["Nope"]}
+        Handler.terminate(infos)
     end
   end
 
-  defp get_reminder(infos) do
-    :poolboy.transaction(Reminder, fn(pid) ->
-      Reminder.get(pid, infos)
+  defp get_bouncer(infos) do
+    :poolboy.transaction(Bouncer, fn(pid) ->
+      Bouncer.get(pid, infos)
     end)
   end
 
-  defp set_reminder(params, infos) do
-    with :ok <- reminder_refuse_priv_msg(infos),
-         {:ok, user, memo} <- reminder_extract_params(params),
-           false <- reminder_chan_has_user(user, infos) do
+  defp set_bouncer(params, infos) do
+    with :ok <- bouncer_refuse_priv_msg(infos),
+         {:ok, user, memo} <- bouncer_extract_params(params),
+           false <- bouncer_chan_has_user(user, infos) do
       # match = Regex.named_captures(~r/#{cmd}.*#{user}(?<memo>.*)/ui, msg)
-      # reminder = {user, match["memo"]}
-      :poolboy.transaction(Reminder, fn(pid) ->
-        Reminder.set(pid, {user, memo}, infos)
+      # bouncer = {user, match["memo"]}
+      :poolboy.transaction(Bouncer, fn(pid) ->
+        Bouncer.set(pid, {user, memo}, infos)
       end)
     else
       {:error, msg} ->
-        infos = %Irc.Infos{infos | answers: [msg]}
-      Tool.terminate(infos)
+        infos = %Handler.Infos{infos | answers: [msg]}
+      Handler.terminate(infos)
     end
   end
 
-  defp reminder_refuse_priv_msg(infos) do
+  defp bouncer_refuse_priv_msg(infos) do
     case infos.chan do
       nil -> {:error, "I can't do that on private messages!"}
       _ -> :ok
     end
   end
 
-  defp reminder_extract_params(params) do
+  defp bouncer_extract_params(params) do
     case params do
       [] -> {:error, "Missing parameter, type .help for usage."}
       [head|tail] -> {:ok, head, Enum.join(tail, " ")}
     end
   end
 
-  defp reminder_chan_has_user(user, infos) do
+  defp bouncer_chan_has_user(user, infos) do
     case GenServer.call(infos.pid, {:has_user, infos.chan, user}) do
       true -> {:error, "#{user} is already on the channel."}
       false -> false

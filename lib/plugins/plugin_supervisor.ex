@@ -17,7 +17,7 @@ defmodule Hal.PluginSupervisor do
 
     children = [
       :poolboy.child_spec(:p_plugin_quote, Tool.poolboy_conf(Hal.Plugin.Quote, 10, 5)),
-      :poolboy.child_spec(:p_plugin_reminder, Tool.poolboy_conf(Hal.Plugin.Reminder, 10, 5)),
+      :poolboy.child_spec(:p_plugin_bouncer, Tool.poolboy_conf(Hal.Plugin.Bouncer, 10, 5)),
       :poolboy.child_spec(:p_plugin_time, Tool.poolboy_conf(Hal.Plugin.Time, 10, 5)),
       :poolboy.child_spec(:p_plugin_web, Tool.poolboy_conf(Hal.Plugin.Web, 10, 5)),
       :poolboy.child_spec(:p_plugin_weather, Tool.poolboy_conf(Hal.Plugin.Weather, 10, 5))
