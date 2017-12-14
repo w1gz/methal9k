@@ -3,10 +3,7 @@ cover/
 deps/
 doc/
 venv/
-
-*.sec
 *.beam
-
 *~
 .*~
 \#*\#

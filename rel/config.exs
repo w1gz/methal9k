@@ -3,17 +3,14 @@ Path.join(["rel", "plugins", "*.exs"])
 |> Enum.map(&Code.eval_file(&1))
 
 use Mix.Releases.Config,
-    default_release: :default,
-    default_environment: Mix.env()
-
-environment :dev do
-  set dev_mode: true
-  set include_erts: false
-end
+    default_release: :hal,
+    default_environment: :prod
 
 environment :prod do
   set include_erts: true
+  set include_system_libs: true
   set include_src: false
+  set cookie: :prod
 end
 
 release :hal do

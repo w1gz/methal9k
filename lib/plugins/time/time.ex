@@ -32,8 +32,9 @@ defmodule Hal.Plugin.Time do
 
   def init(_state) do
     Logger.debug("[NEW] PluginTime #{inspect self()}")
-    geo_id = Tool.read_token("lib/plugins/time/geo.sec")
-    tz_id = Tool.read_token("lib/plugins/time/tz.sec")
+    priv_dir = :code.priv_dir(:hal)
+    geo_id = Tool.read_token(Path.join(priv_dir, "geo.sec"))
+    tz_id = Tool.read_token(Path.join(priv_dir, "tz.sec"))
     state = %Credentials{gc_id: geo_id, tz_id: tz_id}
     {:ok, state}
   end

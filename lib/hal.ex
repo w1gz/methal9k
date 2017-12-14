@@ -30,10 +30,12 @@ defmodule Hal do
       pass: ""
   end
 
-  def start(_type, [credentials]) do
+  def start(_type, []) do
     import Supervisor.Spec, warn: false
 
     # read config file or fallback to internal configuration
+    priv_dir = :code.priv_dir(:hal)
+    credentials = Path.join(priv_dir, "credz.sec")
     irc_conf = parse_irc_conf(credentials)
     slack_conf = parse_slack_conf(credentials)
 

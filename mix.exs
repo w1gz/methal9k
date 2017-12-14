@@ -3,7 +3,7 @@ defmodule Methal9k.Mixfile do
 
   def project do
     [app: :hal,
-     version: "0.10.0",
+     version: "0.2.0",
      elixir: "~> 1.4",
      description: description(),
      package: package(),
@@ -13,7 +13,7 @@ defmodule Methal9k.Mixfile do
   end
 
   def application do
-    [extra_applications: [:logger], mod: {Hal, ["credz.sec"]}]
+    [extra_applications: [:logger, :mnesia], mod: {Hal, []}]
   end
 
   defp deps do

@@ -64,8 +64,9 @@ defmodule Hal.Plugin.Weather do
 
   def init(_state) do
     Logger.debug("[NEW] PluginWeather #{inspect self()}")
-    filename = "lib/plugins/weather/weather_token.sec"
-    weather_id = Tool.read_token(filename)
+    priv_dir = :code.priv_dir(:hal)
+    file = Path.join(priv_dir, "weather.sec")
+    weather_id = Tool.read_token(file)
     state = %Credentials{appid: weather_id}
     {:ok, state}
   end
