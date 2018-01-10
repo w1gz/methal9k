@@ -14,9 +14,11 @@ defmodule Hal.SlackSupervisor do
   def init(slack_conf) do
     Logger.debug("[NEW] SlackSupervisor #{inspect self()}")
     children = Enum.map(slack_conf, fn(conf) ->
-      token = conf[:token]
-      host = conf[:host]
-      worker(Slack.Bot, [Hal.SlackHandler, [], token], [id: host])
+      # TODO oauth ?!
+      Slack.Web.Oauth(conf[:client_id], conf[:client_secret],)
+      token = nil
+
+      worker(Slack.Bot, [Hal.SlackHandler, [], token], [id: conf[:host]])
     end)
     supervise(children, strategy: :one_for_one)
   end

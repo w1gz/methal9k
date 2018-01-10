@@ -62,7 +62,9 @@ defmodule Hal do
     else
       [yaml] ->
         Enum.map(yaml["slack"], fn(s) ->
-          %{token: s["token"], host: s["host"]}
+          %{id: s["id"],
+            token: s["token"],
+            host: s["host"]}
         end)
     end
   end
