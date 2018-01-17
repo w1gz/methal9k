@@ -38,7 +38,7 @@ defmodule Hal.Plugin.Bouncer do
   end
 
   def handle_call(:usage, _frompid, state) do
-    answer = ".bounce <someone> <msg>, send them <msg> as soon as they /join this channel"
+    answer = ".bounce <someone> <msg>, send a <msg> as soon as they /join this channel (IRC only)"
     {:reply, answer, state}
   end
 

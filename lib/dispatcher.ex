@@ -78,7 +78,7 @@ defmodule Hal.Dispatcher do
     end)
 
     orphans = [
-      ".chan will highlight everyone else in the current channel"
+      ".chan highlight everyone else in the current channel (IRC only)"
     ]
 
     answers = plugins_answers ++ orphans
