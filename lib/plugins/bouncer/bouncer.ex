@@ -80,6 +80,7 @@ defmodule Hal.Plugin.Bouncer do
 
     # parse & send what we matched
     answers = case :mnesia.transaction(bouncers_query) do
+                {:aborted, {:no_exists, Bouncer}} -> [nil]
                 {:atomic, []} -> [nil]
                 {:atomic, results} ->
                   Enum.map(results, fn(res) ->
