@@ -49,7 +49,7 @@ defmodule Hal do
       supervisor(Hal.IrcSupervisor, [irc_conf, [name: :hal_irc_supervisor]]),
       # supervisor(Hal.SlackSupervisor, [slack_conf, [name: :hal_slack_supervisor]]),
       supervisor(Hal.PluginSupervisor, [[], [name: :hal_plugin_supervisor]]),
-      :poolboy.child_spec(:p_dispatcher, Tool.poolboy_conf(Hal.Dispatcher, 20, 10))
+      :poolboy.child_spec(:p_dispatcher, Tool.poolboy_conf(Hal.Dispatcher))
     ]
     Supervisor.start_link(children, [name: :hal, strategy: :one_for_one])
   end

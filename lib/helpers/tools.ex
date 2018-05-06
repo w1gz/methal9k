@@ -5,7 +5,7 @@ defmodule Hal.Tool do
 
   require Logger
 
-  def poolboy_conf(plugin, size \\ 10, overflow \\ 5) do
+  def poolboy_conf(plugin, size \\ 3, overflow \\ 2) do
     [{:name, {:local, plugin}},
      {:worker_module, plugin},
      {:size, size}, {:max_overflow, overflow}]
