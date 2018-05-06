@@ -37,7 +37,7 @@ defmodule Hal do
     priv_dir = :code.priv_dir(:hal)
     credentials = Path.join(priv_dir, "credz.sec")
     irc_conf = parse_irc_conf(credentials)
-    slack_conf = parse_slack_conf(credentials)
+    # slack_conf = parse_slack_conf(credentials)
 
     # launch Mnesia
     :mnesia.create_schema([node()])
@@ -47,7 +47,7 @@ defmodule Hal do
     children = [
       worker(Hal.Keeper, [[], [name: :hal_keeper]]),
       supervisor(Hal.IrcSupervisor, [irc_conf, [name: :hal_irc_supervisor]]),
-      supervisor(Hal.SlackSupervisor, [slack_conf, [name: :hal_slack_supervisor]]),
+      # supervisor(Hal.SlackSupervisor, [slack_conf, [name: :hal_slack_supervisor]]),
       supervisor(Hal.PluginSupervisor, [[], [name: :hal_plugin_supervisor]]),
       :poolboy.child_spec(:p_dispatcher, Tool.poolboy_conf(Hal.Dispatcher, 20, 10))
     ]
