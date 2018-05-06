@@ -14,7 +14,7 @@ defmodule Hal.Tool do
   def read_token(token) do
     token_name = List.last(String.split(token, "/"))
     case File.read(token) do
-      {:ok, tok} -> Logger.info("#{token_name} token successfully read")
+      {:ok, tok} -> Logger.debug("#{token_name} token successfully read")
       String.trim(tok)
       _ -> Logger.warn("#{token_name} token not found")
         ""

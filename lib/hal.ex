@@ -4,6 +4,7 @@ defmodule Hal do
   """
 
   use Application
+  require Logger
   alias Hal.Tool, as: Tool
 
   defmodule State do
@@ -40,8 +41,14 @@ defmodule Hal do
     # slack_conf = parse_slack_conf(credentials)
 
     # launch Mnesia
-    :mnesia.create_schema([node()])
-    :mnesia.start()
+    with :ok <- :mnesia.create_schema([node()]),
+         :ok <- :mnesia.start() do
+      Logger.debug("Mnesia successfully started")
+    else
+      {:error, {_node, {:already_exists, _node}}} ->
+        Logger.debug("Found existing Mnesia schema")
+        :mnesia.start()
+    end
 
     # static processes
     children = [
