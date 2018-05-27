@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+
+  ngircd:
+    build:
+      context: .
+      dockerfile: ./docker_images/Dockerfile.ngircd
+    ports:
+      - 6697:6697
+
+  builder:
+    build:
+      context: .
+      dockerfile: ./docker_images/Dockerfile.builder
+    environment:
+      - MIX_ENV=prod
+    volumes:
+      - .:/app:Z
+
+  bot:
+    build:
+      context: .
+      dockerfile: ./docker_images/Dockerfile.bot
+    environment:
+      - MIX_ENV=prod
+    volumes:
+      - .:/app:Z

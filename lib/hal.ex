@@ -45,7 +45,7 @@ defmodule Hal do
          :ok <- :mnesia.start() do
       Logger.debug("Mnesia successfully started")
     else
-      {:error, {_node, {:already_exists, _node}}} ->
+       {:error, {_, {:already_exists, _node}}} ->
         Logger.debug("Found existing Mnesia schema")
         :mnesia.start()
     end
@@ -67,7 +67,7 @@ defmodule Hal do
     catch
       _ -> [""]
     else
-      [yaml] ->
+      {:ok, [yaml]} ->
         Enum.map(yaml["slack"], fn(s) ->
           %{token: s["token"], host: s["host"]}
         end)
@@ -80,7 +80,7 @@ defmodule Hal do
     catch
       _ -> [%State{}]
     else
-      [yaml] ->
+      {:ok, [yaml]} ->
         Enum.map(yaml["irc"], fn(s) ->
           %State{host: s["host"],
                  port: s["port"],

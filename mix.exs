@@ -13,7 +13,21 @@ defmodule Methal9k.Mixfile do
   end
 
   def application do
-    [extra_applications: [:logger], mod: {Hal, []}]
+    [
+      applications: [
+        :mnesia,
+        :exirc,
+        :html_entities,
+        :httpoison,
+        :poison,
+        :poolboy,
+        :slack,
+        :timex,
+        :yaml_elixir
+      ],
+      extra_applications: [:logger],
+      mod: {Hal, []}
+    ]
   end
 
   defp deps do
