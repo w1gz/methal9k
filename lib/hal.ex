@@ -45,9 +45,7 @@ defmodule Hal do
          :ok <- :mnesia.start() do
       Logger.debug("Mnesia successfully started")
     else
-       {:error, {_, {:already_exists, _node}}} ->
-        Logger.debug("Found existing Mnesia schema")
-        :mnesia.start()
+      error -> Logger.debug("Mnesia failed to start: #{inspect error}")
     end
 
     # static processes

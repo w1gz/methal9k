@@ -14,18 +14,8 @@ defmodule Methal9k.Mixfile do
 
   def application do
     [
-      applications: [
-        :mnesia,
-        :exirc,
-        :html_entities,
-        :httpoison,
-        :poison,
-        :poolboy,
-        :slack,
-        :timex,
-        :yaml_elixir
-      ],
       extra_applications: [:logger],
+      included_applications: [:mnesia],
       mod: {Hal, []}
     ]
   end
