@@ -1,7 +1,7 @@
-FROM alpine:3.8
+FROM docker.io/alpine:3.8
 
 # We need that sweet elixir installation
-RUN apk --upgrade --no-cache add bash elixir erlang-mnesia
+RUN apk --upgrade --no-cache add bash elixir erlang-runtime-tools erlang-mnesia
 
 # setup a default user
 RUN adduser -D builder
