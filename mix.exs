@@ -23,6 +23,7 @@ defmodule Methal9k.Mixfile do
   defp deps do
     [
       {:exirc, ">= 1.0.1"},
+      # {:slack, ">= 0.15.0"}, # deactivated for now
       {:httpoison, ">= 1.3.0"},
       {:poison, ">= 4.0.1"},
       {:timex, ">= 3.3.0"},

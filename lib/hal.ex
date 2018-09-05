@@ -59,18 +59,18 @@ defmodule Hal do
     Supervisor.start_link(children, [name: :hal, strategy: :one_for_one])
   end
 
-  defp parse_slack_conf(credentials) do
-    try do
-      YamlElixir.read_all_from_file(credentials)
-    catch
-      _ -> [""]
-    else
-      {:ok, [yaml]} ->
-        Enum.map(yaml["slack"], fn(s) ->
-          %{token: s["token"], host: s["host"]}
-        end)
-    end
-  end
+  # defp parse_slack_conf(credentials) do
+  #   try do
+  #     YamlElixir.read_all_from_file(credentials)
+  #   catch
+  #     _ -> [""]
+  #   else
+  #     {:ok, [yaml]} ->
+  #       Enum.map(yaml["slack"], fn(s) ->
+  #         %{token: s["token"], host: s["host"]}
+  #       end)
+  #   end
+  # end
 
   defp parse_irc_conf(credentials) do
     try do
