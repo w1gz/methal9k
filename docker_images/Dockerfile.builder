@@ -18,4 +18,4 @@ ADD mix.lock $APP
 RUN mix do local.hex --force, local.rebar --force
 
 # run whatever is in $APP
-CMD mix do deps.get --all, release
+CMD COOKIE=changeme mix do deps.get --all, release

@@ -85,7 +85,7 @@ defmodule Hal.Plugin.Quote do
   def handle_cast({:del, infos, quote_id}, state) do
     {id, _rem} = Integer.parse(quote_id)
     query = fn ->
-      a_quote = {Quote, id, :'_', infos.host, infos.chan, :'_'}
+      a_quote = {Quote, id, :_, infos.host, infos.chan, :_}
       case :mnesia.match_object(a_quote) do
         [] -> nil
         [result] -> :mnesia.delete_object(result)
@@ -106,7 +106,7 @@ defmodule Hal.Plugin.Quote do
     aborted_msg = "Can't find anything... weird."
     query_with_integer = fn(id) ->
       # directly acces the quote with its id
-      query = fn -> :mnesia.match_object({Quote, id, :'_', infos.host, infos.chan, :'_'}) end
+      query = fn -> :mnesia.match_object({Quote, id, :_, infos.host, infos.chan, :_}) end
       case :mnesia.transaction(query) do
         {:atomic, match} ->
           case Enum.at(match, 0) do
@@ -119,7 +119,7 @@ defmodule Hal.Plugin.Quote do
 
     query_with_keyword = fn(keyword) ->
       # look for the quote in :'$3' (msg field)
-      query = fn -> :mnesia.match_object({Quote, :'_', :'$2', infos.host, infos.chan, :'$3'}) end
+      query = fn -> :mnesia.match_object({Quote, :_, :'$2', infos.host, infos.chan, :'$3'}) end
       case :mnesia.transaction(query) do
         {:atomic, match} ->
           # TODO do the filter in the mnesia request?
