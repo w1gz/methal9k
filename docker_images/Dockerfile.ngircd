@@ -10,7 +10,7 @@ RUN cd /etc/ngircd &&\
     sed -i "s#;Ports = 6697, 9999#Ports = 6697#g" ngircd.conf &&\
     sed -i "s#;SSLConnect = yes#SSLConnect = yes#g" ngircd.conf &&\
     sed -i "s#;PAM = yes#PAM = no#g" ngircd.conf &&\
-    sed -i "s/;Name = #TheName/Name = #hal,#test/g" ngircd.conf &&\
+    sed -i "s/;Name = #TheName/Name = #methal9k/g" ngircd.conf &&\
     sed -i "s/;Topic = a great topic/Topic = Testing channel for hal/g" ngircd.conf &&\
     openssl req -newkey rsa:2048 -x509 -days 365 -nodes \
         -keyout server.key -out server.crt \
