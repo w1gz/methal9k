@@ -24,16 +24,16 @@ defmodule Methal9k.Mixfile do
     [
       {:exirc, ">= 1.0.1"},
       # {:slack, ">= 0.15.0"}, # deactivated for now
-      {:httpoison, ">= 1.3.0"},
+      {:httpoison, ">= 1.4.0"},
       {:poison, ">= 4.0.1"},
-      {:timex, ">= 3.3.0"},
+      {:timex, ">= 3.4.2"},
       {:yaml_elixir, ">= 2.1.0"},
       {:html_entities, ">= 0.4.0"},
       {:poolboy, ">= 1.5.1"},
-      {:distillery, ">= 2.0.9", runtime: false},
-      {:credo, ">= 0.10.0", only: :dev},
+      {:distillery, ">= 2.0.12", runtime: false},
+      {:credo, ">= 0.10.2", only: :dev},
       {:ex_doc, ">= 0.19.1", only: :dev},
-      {:excoveralls, ">= 0.10.0", only: :test}
+      {:excoveralls, ">= 0.10.2", only: :test}
     ]
   end
 
