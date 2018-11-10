@@ -9,36 +9,29 @@ GenServer, Supervisor or even Hot code loading.
 
 ## Bare metal
 
-Everything in methal9k is handle by [Mix](https://hexdocs.pm/mix/Mix.html):
+Everything in methal9k is handle by [Mix](https://hexdocs.pm/mix/Mix.html) and the project's
+`Makefile`. To run the bot, simply execute: `make run`.
 
-``` bash
-    mix deps.get
-    mix run --no-halt
-```
+## Docker for local development
 
-## Docker
-
-A docker-compose configuration is provided with a dedicated container for:
-  - compiling the project and creating the release
-  - running the release
+Two Dockerfiles are available for:
+  - compiling, creating the release and running the bot
   - debugging against a real IRC server
 
 To launch everything, follow those steps:
 
 ``` bash
-    # 1. (optional) launch ngIRCd, it will listen on 6697 by default
-    docker-compose up -d ngircd
+    # 1. build and run the bot and ngIRCd (port 6697)
+    make docker-dev
 
-    # 2. compile the project and create the release
-    docker-compose run --rm builder
-
-    # 3. run the bot
-    docker-compose run --rm bot
+    # 2. to stop everything
+    make docker-stop
 ```
 
-Everytime you want to recompile the project, just repeat step 2 and 3.
+You should have the bot running and connected to ngIRCd. You can play with the container as usual,
+for example to see the logs `docker attach methal9k.bot`.
 
-If you want to stop and remove everything, simply run: `docker-compose down --remove-orphans`.
+For more information or options, checkout the goals available inside the `Makefile`.
 
 
 # Improvements
