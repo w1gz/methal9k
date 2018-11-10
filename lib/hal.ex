@@ -22,7 +22,7 @@ defmodule Hal do
     """
 
     defstruct client: nil,
-      host: "127.0.0.1",
+      host: "localhost",
       port: 6697,
       chans: ["#hal", "#test"],
       nick: "hal",
@@ -60,24 +60,17 @@ defmodule Hal do
   end
 
   # defp parse_slack_conf(credentials) do
-  #   try do
-  #     YamlElixir.read_all_from_file(credentials)
-  #   catch
-  #     _ -> [""]
-  #   else
+  #   case YamlElixir.read_all_from_file(credentials) do
   #     {:ok, [yaml]} ->
   #       Enum.map(yaml["slack"], fn(s) ->
   #         %{token: s["token"], host: s["host"]}
   #       end)
+  #     _ -> [""]
   #   end
   # end
 
   defp parse_irc_conf(credentials) do
-    try do
-      YamlElixir.read_all_from_file(credentials)
-    catch
-      _ -> [%State{}]
-    else
+    case YamlElixir.read_all_from_file(credentials) do
       {:ok, [yaml]} ->
         Enum.map(yaml["irc"], fn(s) ->
           %State{host: s["host"],
@@ -88,6 +81,7 @@ defmodule Hal do
                  user: s["user"],
                  pass: s["pass"]}
         end)
+      _ -> [%State{}]
     end
   end
 
